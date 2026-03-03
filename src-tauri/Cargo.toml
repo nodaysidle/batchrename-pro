@@ -1,0 +1,40 @@
+[package]
+name = "batchrename-pro"
+version = "0.1.0"
+description = "BatchRename Pro - Batch file renaming, conversion, and metadata editing"
+authors = ["archuser"]
+edition = "2021"
+
+[lib]
+name = "batchrename_pro_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.34", features = ["bundled"] }
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+rayon = "1.10"
+regex = "1"
+image = "0.25"
+id3 = "1"
+kamadak-exif = "0.5"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1", features = ["fs"] }
+thiserror = "2"
+rfd = "0.15"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"
