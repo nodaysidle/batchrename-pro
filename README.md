@@ -33,9 +33,9 @@ A fast, native desktop app for batch file renaming, format conversion, and metad
 
 ---
 
-## Screenshots
+## Screenshot
 
-> Add screenshots here after first build
+![BatchRename Pro — Numbering mode with live preview](docs/screenshot.png)
 
 ---
 
