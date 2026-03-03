@@ -32,16 +32,29 @@ function AppContent() {
   const handleApply = useCallback(async () => {
     if (!renamePattern || state.files.length === 0) return;
 
+    // Dispatch START_JOB before IPC so progress events are handled
+    dispatch({
+      type: "START_JOB",
+      jobId: "pending",
+      jobType: "rename",
+      filesTotal: state.files.length,
+    });
+
     try {
-      const response = await applyRename(state.files, renamePattern);
-      dispatch({
-        type: "START_JOB",
-        jobId: response.job_id,
-        jobType: "rename",
-        filesTotal: response.file_count,
-      });
+      await applyRename(state.files, renamePattern);
     } catch (err) {
       console.error("Apply failed:", err);
+      // Clear active job on error
+      dispatch({
+        type: "COMPLETE_JOB",
+        event: {
+          job_id: "pending",
+          status: "failed",
+          files_completed: 0,
+          files_failed: state.files.length,
+          duration_ms: 0,
+        },
+      });
     }
   }, [state.files, renamePattern, dispatch]);
 
