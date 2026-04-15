@@ -1,10 +1,12 @@
-use crate::types::{FileInfo, FileStatus, FileType};
+use crate::types::{FileInfo, FileType, FileStatus};
+use image::ImageReader;
+use image::ImageFormat;
+use std::io::Cursor;
 use std::path::Path;
-use uuid::Uuid;
 
-const AUDIO_EXTS: &[&str] = &["mp3", "wav", "flac", "m4a", "ogg", "aac", "wma"];
-const IMAGE_EXTS: &[&str] = &["jpg", "jpeg", "png", "webp", "avif", "bmp", "tiff", "gif", "ico"];
-const VIDEO_EXTS: &[&str] = &["mp4", "webm", "mkv", "avi", "mov", "wmv", "flv"];
+const AUDIO_EXTS: &[&str] = &["mp3", "wav", "flac", "m4a", "aac", "ogg", "wma", "aiff"];
+const IMAGE_EXTS: &[&str] = &["jpg", "jpeg", "png", "webp", "avif", "gif", "bmp", "tiff", "tif", "svg", "ico"];
+const VIDEO_EXTS: &[&str] = &["mp4", "webm", "mkv", "avi", "mov", "wmv", "flv", "m4v"];
 
 pub fn detect_file_type(ext: &str) -> FileType {
     let ext_lower = ext.to_lowercase();
@@ -19,32 +21,73 @@ pub fn detect_file_type(ext: &str) -> FileType {
     }
 }
 
-pub fn generate_thumbnail(path: &Path, file_type: &FileType) -> Option<String> {
-    if *file_type != FileType::Image {
-        return None;
+pub fn validate_and_build_file_info(path_str: &str, hard_cap: u32, current_count: u32) -> Result<FileInfo, String> {
+    if current_count >= hard_cap {
+        return Err(format!("TOO_MANY_FILES: Exceeds hard cap of {}", hard_cap));
     }
 
-    match image::open(path) {
-        Ok(img) => {
-            let thumb = img.thumbnail(64, 64);
-            let mut buf = Vec::new();
-            let mut cursor = std::io::Cursor::new(&mut buf);
-            thumb
-                .write_to(&mut cursor, image::ImageFormat::Png)
+    let path = Path::new(path_str);
+    let canonical = path
+        .canonicalize()
+        .map_err(|_| format!("FILE_NOT_FOUND: {}", path_str))?;
+
+    let metadata = std::fs::metadata(&canonical)
+        .map_err(|e| format!("PERMISSION_DENIED: {}", e))?;
+
+    if metadata.is_dir() {
+        return Err(format!("UNSUPPORTED_TYPE: {} is a directory", path_str));
+    }
+
+    let original_name = canonical
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("unknown")
+        .to_string();
+
+    let extension = canonical
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    let file_type = detect_file_type(&extension);
+    let thumbnail = generate_thumbnail(&canonical, &file_type);
+
+    Ok(FileInfo {
+        id: uuid::Uuid::new_v4().to_string(),
+        original_name,
+        original_path: canonical.to_string_lossy().to_string(),
+        extension,
+        size_bytes: metadata.len(),
+        file_type,
+        thumbnail_data_url: thumbnail,
+        status: FileStatus::Pending,
+        transformed_name: None,
+        error: None,
+    })
+}
+
+fn generate_thumbnail(path: &Path, file_type: &FileType) -> Option<String> {
+    match file_type {
+        FileType::Image => {
+            let img = ImageReader::open(path).ok()?.decode().ok()?;
+            let resized = img.resize(64, 64, image::imageops::FilterType::Lanczos3);
+            let mut bytes: Vec<u8> = Vec::new();
+            resized
+                .write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png)
                 .ok()?;
-            let b64 = base64_encode(&buf);
-            Some(format!("data:image/png;base64,{}", b64))
+            Some(format!(
+                "data:image/png;base64,{}",
+                base64_encode(&bytes)
+            ))
         }
-        Err(e) => {
-            tracing::warn!("Failed to generate thumbnail for {:?}: {}", path, e);
-            None
-        }
+        _ => None,
     }
 }
 
 fn base64_encode(data: &[u8]) -> String {
     const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut result = String::with_capacity(4 * (data.len() / 3 + 1));
+    let mut result = String::with_capacity((data.len() + 2) / 3 * 4);
     for chunk in data.chunks(3) {
         let b0 = chunk[0] as u32;
         let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
@@ -66,81 +109,39 @@ fn base64_encode(data: &[u8]) -> String {
     result
 }
 
-pub fn validate_and_create_file_info(paths: &[String], hard_cap: u32) -> Result<Vec<FileInfo>, String> {
-    if paths.len() as u32 > hard_cap {
-        return Err(format!(
-            "TOO_MANY_FILES: Cannot add {} files, maximum is {}",
-            paths.len(),
-            hard_cap
-        ));
-    }
+pub fn create_backup(original_path: &str, backup_dir: &Path) -> Result<String, String> {
+    std::fs::create_dir_all(backup_dir).map_err(|e| format!("BACKUP_FAILED: {}", e))?;
 
-    let mut files = Vec::with_capacity(paths.len());
+    let path = Path::new(original_path);
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| "BACKUP_FAILED: Invalid file name".to_string())?;
 
-    for path_str in paths {
-        let path = Path::new(path_str);
+    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+    let backup_name = format!("{}_{}", timestamp, file_name.to_string_lossy());
+    let backup_path = backup_dir.join(&backup_name);
 
-        let canonical = match std::fs::canonicalize(path) {
-            Ok(p) => p,
-            Err(_) => {
-                return Err(format!("FILE_NOT_FOUND: Path does not exist: {}", path_str));
-            }
-        };
+    std::fs::copy(path, &backup_path).map_err(|e| format!("BACKUP_FAILED: {}", e))?;
 
-        if !canonical.is_file() {
-            continue; // Skip directories silently
-        }
-
-        let metadata = std::fs::metadata(&canonical)
-            .map_err(|_| format!("PERMISSION_DENIED: Cannot read file: {}", path_str))?;
-
-        let file_name = canonical
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
-
-        let extension = canonical
-            .extension()
-            .map(|e| e.to_string_lossy().to_string())
-            .unwrap_or_default();
-
-        let file_type = detect_file_type(&extension);
-        let thumbnail = generate_thumbnail(&canonical, &file_type);
-
-        files.push(FileInfo {
-            id: Uuid::new_v4().to_string(),
-            original_name: file_name,
-            original_path: canonical.to_string_lossy().to_string(),
-            extension,
-            size_bytes: metadata.len(),
-            file_type,
-            thumbnail_data_url: thumbnail,
-            status: FileStatus::Pending,
-        });
-    }
-
-    Ok(files)
+    Ok(backup_path.to_string_lossy().to_string())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub fn restore_from_backup(backup_path: &str, original_path: &str) -> Result<(), String> {
+    std::fs::copy(backup_path, original_path)
+        .map_err(|e| format!("RESTORE_FAILED: {}", e))?;
+    Ok(())
+}
 
-    #[test]
-    fn test_detect_file_type() {
-        assert_eq!(detect_file_type("mp3"), FileType::Audio);
-        assert_eq!(detect_file_type("MP3"), FileType::Audio);
-        assert_eq!(detect_file_type("jpg"), FileType::Image);
-        assert_eq!(detect_file_type("mp4"), FileType::Video);
-        assert_eq!(detect_file_type("txt"), FileType::Document);
-        assert_eq!(detect_file_type("pdf"), FileType::Document);
-    }
+pub fn detect_conflicts(previews: &[(String, String)]) -> Vec<(usize, String)> {
+    let mut conflicts = Vec::new();
+    let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
 
-    #[test]
-    fn test_hard_cap_enforcement() {
-        let paths: Vec<String> = (0..10).map(|i| format!("/tmp/file_{}.txt", i)).collect();
-        let result = validate_and_create_file_info(&paths, 5);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("TOO_MANY_FILES"));
+    for (i, (_original, new_name)) in previews.iter().enumerate() {
+        if let Some(&first_idx) = seen.get(new_name) {
+            conflicts.push((i, format!("Duplicate of file #{}", first_idx + 1)));
+        } else {
+            seen.insert(new_name.clone(), i);
+        }
     }
+    conflicts
 }

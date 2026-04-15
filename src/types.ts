@@ -1,8 +1,5 @@
-// Shared types matching Rust serde structs in src-tauri/src/types.rs
-
-export type FileType = "audio" | "image" | "video" | "document";
-
-export type FileStatus = "pending" | "processing" | "success" | "failed" | "skipped";
+export type FileType = 'audio' | 'image' | 'video' | 'document';
+export type FileStatus = 'pending' | 'processing' | 'done' | 'error';
 
 export interface FileInfo {
   id: string;
@@ -13,11 +10,12 @@ export interface FileInfo {
   file_type: FileType;
   thumbnail_data_url: string | null;
   status: FileStatus;
+  transformed_name: string | null;
+  error: string | null;
 }
 
-export type RenameMode = "regex" | "template" | "numbering";
-
-export type CaseTransform = "none" | "upper" | "lower" | "title";
+export type RenameMode = 'regex' | 'template' | 'numbering';
+export type CaseTransform = 'none' | 'upper' | 'lower' | 'title';
 
 export interface RenamePattern {
   mode: RenameMode;
@@ -28,7 +26,7 @@ export interface RenamePattern {
   zero_pad?: number;
   prefix?: string;
   suffix?: string;
-  case_transform?: CaseTransform;
+  case_transform: CaseTransform;
 }
 
 export interface ConvertOptions {
@@ -38,22 +36,14 @@ export interface ConvertOptions {
   overwrite_existing: boolean;
   video_codec?: string;
   audio_bitrate?: string;
-  image_resize?: ResizeParams;
+  image_resize?: {
+    width: number;
+    height: number;
+    maintain_aspect: boolean;
+  };
 }
 
-export interface ResizeParams {
-  width: number;
-  height: number;
-  maintain_aspect: boolean;
-}
-
-export interface MetadataChanges {
-  tags: Record<string, string | null>;
-  strip_all_exif: boolean;
-  strip_all_id3: boolean;
-}
-
-export interface PreviewResult {
+export interface PreviewPair {
   file_id: string;
   original_name: string;
   transformed_name: string;
@@ -61,28 +51,13 @@ export interface PreviewResult {
   conflict_reason: string | null;
 }
 
-export interface JobRecord {
-  id: string;
-  created_at: string;
-  operation_type: "rename" | "convert" | "metadata";
-  status: "running" | "completed" | "partial" | "failed" | "rolled_back";
-  file_count: number;
-  description: string;
-  can_undo: boolean;
+export interface PreviewResponse {
+  previews: PreviewPair[];
+  total_conflicts: number;
 }
 
-export interface JobFileRecord {
-  id: string;
-  job_id: string;
-  original_path: string;
-  original_name: string;
-  transformed_name: string | null;
-  transformed_path: string | null;
-  backup_path: string | null;
-  format_from: string | null;
-  format_to: string | null;
-  status: "pending" | "processing" | "success" | "failed" | "skipped";
-  error_message: string | null;
+export interface AddFilesResponse {
+  files: FileInfo[];
 }
 
 export interface JobStartResponse {
@@ -95,7 +70,7 @@ export interface JobProgressEvent {
   job_id: string;
   file_id: string;
   file_name: string;
-  status: string;
+  status: 'processing' | 'completed' | 'failed';
   progress_percent: number;
   error_message: string | null;
   files_completed: number;
@@ -104,42 +79,26 @@ export interface JobProgressEvent {
 
 export interface JobCompleteEvent {
   job_id: string;
-  status: string;
+  status: 'completed' | 'partial' | 'failed';
   files_completed: number;
   files_failed: number;
   duration_ms: number;
 }
 
-export interface Settings {
-  theme: "dark" | "light";
-  accent_color: string;
-  default_output_dir: string | null;
-  max_parallel_jobs: number;
-  auto_backup: boolean;
-  backup_retention_days: number;
-  last_rename_pattern: RenamePattern | null;
-  last_convert_format: string | null;
-  file_hard_cap: number;
+export interface JobSummary {
+  id: string;
+  timestamp: string;
+  operation_type: string;
+  status: string;
+  file_count: number;
+  description: string;
+  can_undo: boolean;
 }
 
-export interface MetadataField {
-  key: string;
-  value: string;
-  editable: boolean;
-}
-
-export interface MetadataInfo {
-  file_id: string;
-  file_type: string;
-  tags: Record<string, string | number | null>;
-  has_exif: boolean;
-  has_id3: boolean;
-  raw_fields: MetadataField[];
-}
-
-export interface IpcError {
-  code: string;
-  message: string;
+export interface HistoryResponse {
+  jobs: JobSummary[];
+  total_count: number;
+  has_more: boolean;
 }
 
 export interface UndoResponse {
@@ -149,37 +108,29 @@ export interface UndoResponse {
   errors: Array<{ file_id: string; error: string }>;
 }
 
-export interface HistoryResponse {
-  jobs: JobRecord[];
-  total_count: number;
-  has_more: boolean;
+export interface Settings {
+  theme: 'dark' | 'light';
+  accent_color: 'blue' | 'violet';
+  default_output_dir: string | null;
+  max_parallel_jobs: number;
+  auto_backup: boolean;
+  backup_retention_days: number;
+  last_rename_pattern: RenamePattern | null;
+  last_convert_format: string | null;
+  file_hard_cap: number;
 }
 
-export interface JobDetail {
-  job: JobRecord & {
-    files: JobFileRecord[];
-  };
+export interface AppError {
+  code: string;
+  message: string;
 }
 
-export interface CleanupResponse {
-  files_removed: number;
-  space_freed_bytes: number;
-}
+export type TabType = 'rename' | 'convert' | 'metadata';
 
-export interface CancelResponse {
-  cancelled: boolean;
-  files_completed_before_cancel: number;
-}
-
-export interface AddFilesResponse {
-  files: FileInfo[];
-}
-
-export interface PreviewResponse {
-  previews: PreviewResult[];
-  total_conflicts: number;
-}
-
-export interface MetadataResponse {
-  metadata: MetadataInfo[];
+export interface FileStats {
+  total: number;
+  pending: number;
+  processing: number;
+  done: number;
+  error: number;
 }

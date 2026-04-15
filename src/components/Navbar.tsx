@@ -1,56 +1,119 @@
-interface NavbarProps {
-  onSettingsClick: () => void;
-}
+import { useState } from 'react';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Settings, Moon, Sun, HelpCircle, Zap } from 'lucide-react';
 
-export default function Navbar({ onSettingsClick }: NavbarProps) {
+export function Navbar() {
+  const { theme, toggleTheme, accentColor, setAccentColor } = useTheme();
+  const [showSettings, setShowSettings] = useState(false);
+
   return (
-    <nav className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4 no-select">
+    <nav className="sticky top-0 z-40 flex items-center justify-between px-6 h-12 bg-slate-900/80 border-b border-slate-700/30 backdrop-blur-xl">
+      {/* Logo */}
       <div className="flex items-center gap-2">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="text-accent"
-          aria-hidden="true"
-        >
-          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-          <polyline points="14 2 14 8 20 8" />
-          <path d="m9 15 2 2 4-4" />
-        </svg>
-        <span className="text-lg font-semibold tracking-tight">
-          BatchRename Pro
+        <Zap className="w-5 h-5 text-[var(--accent)]" />
+        <span className="text-sm font-semibold text-slate-200 tracking-tight">
+          BatchRename <span className="text-[var(--accent)]">Pro</span>
         </span>
       </div>
 
+      {/* Right actions */}
       <div className="flex items-center gap-1">
+        {/* Accent color dots */}
+        <div className="flex gap-1.5 mr-2">
+          {(['blue', 'violet'] as const).map((color) => (
+            <button
+              key={color}
+              onClick={() => setAccentColor(color)}
+              className={`
+                w-4 h-4 rounded-full transition-all duration-200
+                ${color === 'blue' ? 'bg-blue-500' : 'bg-violet-500'}
+                ${accentColor === color ? 'scale-125' : 'opacity-40 hover:opacity-70 hover:scale-110'}
+              `}
+              style={
+                accentColor === color
+                  ? { boxShadow: `0 0 0 2px #0F172A, 0 0 0 3.5px ${color === 'blue' ? '#3B82F6' : '#A78BFA'}` }
+                  : {}
+              }
+              aria-label={`${color} accent`}
+            />
+          ))}
+        </div>
+
+        {/* Theme toggle */}
         <button
-          onClick={onSettingsClick}
-          className="rounded-lg p-2 text-text-secondary transition-colors duration-200 hover:bg-bg-card hover:text-text-primary"
-          aria-label="Open settings"
+          onClick={toggleTheme}
+          className="p-2 rounded-lg text-slate-400 hover:text-slate-300 hover:bg-slate-800/50 transition-all duration-200"
+          aria-label="Toggle theme"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
+          {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+        </button>
+
+        {/* Settings */}
+        <button
+          onClick={() => setShowSettings(!showSettings)}
+          className="p-2 rounded-lg text-slate-400 hover:text-slate-300 hover:bg-slate-800/50 transition-all duration-200"
+          aria-label="Settings"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
+
+        {/* Help */}
+        <button
+          className="p-2 rounded-lg text-slate-400 hover:text-slate-300 hover:bg-slate-800/50 transition-all duration-200"
+          aria-label="Help"
+        >
+          <HelpCircle className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Settings dropdown */}
+      {showSettings && (
+        <div className="absolute top-12 right-6 w-64 bg-slate-800 border border-slate-700/50 rounded-xl shadow-2xl shadow-black/40 p-4 z-50">
+          <h3 className="text-sm font-medium text-slate-200 mb-3">Settings</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Theme</label>
+              <div className="flex gap-1">
+                {(['dark', 'light'] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => { if (theme !== t) toggleTheme(); }}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      theme === t
+                        ? 'bg-slate-700 text-slate-200'
+                        : 'text-slate-500 hover:text-slate-400'
+                    }`}
+                  >
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Accent color</label>
+              <div className="flex gap-2">
+                {(['blue', 'violet'] as const).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setAccentColor(c)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      accentColor === c
+                        ? 'bg-slate-700 text-slate-200'
+                        : 'text-slate-500 hover:text-slate-400'
+                    }`}
+                  >
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: c === 'blue' ? '#3B82F6' : '#A78BFA' }}
+                    />
+                    {c.charAt(0).toUpperCase() + c.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

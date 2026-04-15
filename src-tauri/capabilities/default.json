@@ -1,10 +1,30 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "Default capabilities for BatchRename Pro",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "opener:default"
+    "core:event:allow-emit",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-center",
+    "core:window:allow-close",
+    "core:window:allow-create",
+    "core:window:allow-maximize",
+    "core:window:allow-minimize",
+    "core:window:allow-set-size",
+    "core:window:allow-set-title",
+    "core:window:allow-show",
+    "core:window:allow-set-resizable",
+    "core:window:allow-set-min-size",
+    "core:path:allow-basename",
+    "core:path:allow-dirname",
+    "core:path:allow-join",
+    "core:path:allow-resolve",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "shell:default"
   ]
 }

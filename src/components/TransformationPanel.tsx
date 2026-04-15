@@ -1,104 +1,57 @@
-import { useState } from "react";
-import RenameTab from "./RenameTab";
-import ConvertTab from "./ConvertTab";
-import MetadataTab from "./MetadataTab";
-import type { RenamePattern } from "@/types";
+import { useCallback } from 'react';
+import { useAppState } from '@/state/AppStateContext';
+import { RenameTab } from './RenameTab';
+import { ConvertTab } from './ConvertTab';
+import { MetadataTab } from './MetadataTab';
+import { ArrowLeftRight, RefreshCw, Tag } from 'lucide-react';
 
-export type TabType = "rename" | "convert" | "metadata";
+const TABS = [
+  { key: 'rename' as const, label: 'Rename', icon: ArrowLeftRight },
+  { key: 'convert' as const, label: 'Convert', icon: RefreshCw },
+  { key: 'metadata' as const, label: 'Metadata', icon: Tag },
+];
 
-interface TransformationPanelProps {
-  isOpen: boolean;
-  onToggle: () => void;
-  onPatternChange?: (pattern: RenamePattern | null) => void;
-}
+export function TransformationPanel() {
+  const { state, dispatch } = useAppState();
+  const { activeTab } = state;
 
-export default function TransformationPanel({
-  isOpen,
-  onToggle,
-  onPatternChange,
-}: TransformationPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabType>("rename");
+  const setTab = useCallback(
+    (tab: typeof activeTab) => dispatch({ type: 'SET_ACTIVE_TAB', tab }),
+    [dispatch]
+  );
 
-  if (!isOpen) {
-    return (
-      <button
-        onClick={onToggle}
-        className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-l-lg border border-r-0 border-border bg-bg-card p-2 text-text-secondary transition-colors duration-200 hover:bg-bg-card-hover hover:text-text-primary"
-        aria-label="Open transformation panel"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
-      </button>
-    );
-  }
-
-  const tabs: { id: TabType; label: string }[] = [
-    { id: "rename", label: "Rename" },
-    { id: "convert", label: "Convert" },
-    { id: "metadata", label: "Metadata" },
-  ];
+  if (state.files.length === 0) return null;
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-l border-border bg-bg-card">
-      {/* Tab header */}
-      <div className="flex items-center justify-between border-b border-border px-2 py-1">
-        <div className="flex" role="tablist" aria-label="Transformation options">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-200 ${
-                activeTab === tab.id
-                  ? "bg-accent/10 text-accent"
-                  : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={onToggle}
-          className="rounded-md p-1 text-text-secondary transition-colors duration-200 hover:bg-bg-card-hover hover:text-text-primary"
-          aria-label="Close transformation panel"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
+    <div className="w-80 flex-shrink-0 flex flex-col bg-slate-900/50 border-l border-slate-700/30 rounded-r-2xl overflow-hidden backdrop-blur-sm">
+      {/* Tab bar */}
+      <div className="flex border-b border-slate-700/30">
+        {TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`
+              flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-medium
+              transition-all duration-200 border-b-2
+              ${
+                activeTab === key
+                  ? 'text-[var(--accent)] border-[var(--accent)]'
+                  : 'text-slate-500 border-transparent hover:text-slate-400 hover:bg-slate-800/30'
+              }
+            `}
           >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto p-4" role="tabpanel">
-        {activeTab === "rename" && <RenameTab onPatternChange={onPatternChange} />}
-        {activeTab === "convert" && <ConvertTab />}
-        {activeTab === "metadata" && <MetadataTab />}
+      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+        {activeTab === 'rename' && <RenameTab />}
+        {activeTab === 'convert' && <ConvertTab />}
+        {activeTab === 'metadata' && <MetadataTab />}
       </div>
-    </aside>
+    </div>
   );
 }

@@ -1,139 +1,129 @@
-import { useState, useCallback, useRef } from "react";
-import { addFiles, openFilePicker } from "@/lib/commands";
-import { useAppState } from "@/state/AppStateContext";
+import { useCallback, useState, useEffect } from 'react';
+import { addFiles as addFilesCmd } from '@/lib/commands';
+import { useAppState } from '@/state/AppStateContext';
+import { open } from '@tauri-apps/plugin-dialog';
+import { FolderOpen, FileUp } from 'lucide-react';
 
-export default function DropZone() {
-  const [isDragging, setIsDragging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const dragCounter = useRef(0);
+export function DropZone() {
   const { dispatch } = useAppState();
+  const [isDragging, setIsDragging] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleFiles = useCallback(
     async (paths: string[]) => {
-      if (paths.length === 0) return;
-      setError(null);
-
+      if (!paths.length) return;
+      setIsLoading(true);
       try {
-        const response = await addFiles(paths);
-        dispatch({ type: "ADD_FILES", files: response.files });
-      } catch (err: unknown) {
-        const e = err as { message?: string };
-        setError(e.message ?? "Failed to add files");
+        const result = await addFilesCmd(paths);
+        dispatch({ type: 'ADD_FILES', files: result.files });
+      } catch (err) {
+        console.error('Failed to add files:', err);
+      } finally {
+        setIsLoading(false);
       }
     },
-    [dispatch],
+    [dispatch]
   );
 
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current++;
-    setIsDragging(true);
+  // Tauri native file drop — gives real filesystem paths
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<string[]>('tauri://file-drop', (event) => {
+        setIsDragging(false);
+        handleFiles(event.payload);
+      }).then((fn) => (unlisten = fn));
+    });
+
+    return () => unlisten?.();
+  }, [handleFiles]);
+
+  // Drag visual feedback
+  useEffect(() => {
+    let unlistenEnter: (() => void) | undefined;
+    let unlistenLeave: (() => void) | undefined;
+
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen('tauri://drag-enter', () => setIsDragging(true)).then(
+        (fn) => (unlistenEnter = fn)
+      );
+      listen('tauri://drag-leave', () => setIsDragging(false)).then(
+        (fn) => (unlistenLeave = fn)
+      );
+    });
+
+    return () => {
+      unlistenEnter?.();
+      unlistenLeave?.();
+    };
   }, []);
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current--;
-    if (dragCounter.current === 0) {
-      setIsDragging(false);
-    }
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-      dragCounter.current = 0;
-
-      const paths: string[] = [];
-      const items = e.dataTransfer.files;
-      for (let i = 0; i < items.length; i++) {
-        const file = items[i];
-        // Tauri webview exposes file.path as a non-standard property
-        const filePath = (file as unknown as Record<string, unknown>).path as string | undefined;
-        if (filePath) {
-          paths.push(filePath);
-        }
-      }
-
-      await handleFiles(paths);
-    },
-    [handleFiles],
-  );
-
+  // Click to browse — Tauri native dialog
   const handleClick = useCallback(async () => {
-    setError(null);
     try {
-      const response = await openFilePicker();
-      await handleFiles(response.paths);
-    } catch (err: unknown) {
-      const e = err as { message?: string };
-      setError(e.message ?? "Failed to open file picker");
+      const selected = await open({
+        multiple: true,
+        filters: [
+          {
+            name: 'All Supported',
+            extensions: ['mp3', 'wav', 'flac', 'm4a', 'jpg', 'jpeg', 'png', 'webp', 'avif', 'mp4', 'webm', 'mkv'],
+          },
+          { name: 'Audio', extensions: ['mp3', 'wav', 'flac', 'm4a'] },
+          { name: 'Image', extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif'] },
+          { name: 'Video', extensions: ['mp4', 'webm', 'mkv'] },
+        ],
+      });
+      if (selected) {
+        const paths = Array.isArray(selected) ? selected : [selected];
+        handleFiles(paths);
+      }
+    } catch (err) {
+      console.error('File picker error:', err);
     }
   }, [handleFiles]);
 
   return (
     <div
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
       onClick={handleClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          handleClick();
+      className={`
+        relative flex flex-col items-center justify-center gap-4
+        rounded-2xl border-2 border-dashed p-12
+        cursor-pointer transition-all duration-200 ease-out
+        backdrop-blur-md
+        ${
+          isDragging
+            ? 'border-[var(--accent)] bg-[var(--accent)]/10 scale-[1.02]'
+            : 'border-slate-600/50 bg-white/[0.03] hover:border-slate-500/70 hover:bg-white/[0.05]'
         }
-      }}
-      aria-label="Drop files here or click to browse"
-      className={`flex cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-12 backdrop-blur-md transition-all duration-200 ${
-        isDragging
-          ? "border-accent bg-accent/10 shadow-[0_0_30px_rgba(59,130,246,0.15)]"
-          : "border-border bg-white/5 hover:border-border-hover hover:bg-white/[0.07]"
-      }`}
+        ${isLoading ? 'opacity-60 pointer-events-none' : ''}
+      `}
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="48"
-        height="48"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className={`transition-colors duration-200 ${isDragging ? "text-accent" : "text-text-muted"}`}
-        aria-hidden="true"
+      <div
+        className={`
+          p-4 rounded-full transition-all duration-200
+          ${isDragging ? 'bg-[var(--accent)]/20 scale-110' : 'bg-slate-800/50'}
+        `}
       >
-        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-        <polyline points="14 2 14 8 20 8" />
-        <path d="M12 12v6" />
-        <path d="m15 15-3-3-3 3" />
-      </svg>
-
-      <div className="text-center">
-        <p className={`text-lg transition-colors duration-200 ${isDragging ? "text-accent" : "text-text-secondary"}`}>
-          {isDragging ? "Drop files here" : "Drag files here or click to browse"}
-        </p>
-        <p className="mt-1 text-sm text-text-muted">
-          Audio, image, video, and document files
-        </p>
+        {isDragging ? (
+          <FileUp className="w-8 h-8 text-[var(--accent)]" />
+        ) : (
+          <FolderOpen className="w-8 h-8 text-slate-400" />
+        )}
       </div>
 
-      {error && (
-        <p className="text-sm text-error" role="alert">
-          {error}
+      <div className="text-center">
+        <p className="text-slate-300 text-sm font-medium">
+          {isDragging
+            ? 'Release to add files'
+            : isLoading
+            ? 'Adding files...'
+            : 'Drag files here or click to browse'}
         </p>
-      )}
+        <p className="text-slate-500 text-xs mt-1">
+          Audio, Image, Video — up to 5,000 files
+        </p>
+      </div>
     </div>
   );
 }

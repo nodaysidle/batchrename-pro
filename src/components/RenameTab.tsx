@@ -1,285 +1,218 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
-import { useRenamePreview } from "@/hooks/useRenamePreview";
-import { useAppState } from "@/state/AppStateContext";
-import type { RenamePattern, RenameMode, CaseTransform } from "@/types";
+import { useCallback, useMemo } from 'react';
+import { useAppState } from '@/state/AppStateContext';
+import { Hash, Regex, Type } from 'lucide-react';
 
-const defaultPattern: RenamePattern = {
-  mode: "regex",
-  regex_find: "",
-  regex_replace: "",
-  template: "{original}",
-  start_number: 1,
-  zero_pad: 3,
-  prefix: "",
-  suffix: "",
-  case_transform: "none",
-};
+export function RenameTab() {
+  const { state, dispatch } = useAppState();
+  const p = state.renamePattern;
 
-const templateButtons = [
-  { label: "{original}", desc: "Original name" },
-  { label: "{number}", desc: "Sequence number" },
-  { label: "{date}", desc: "Today's date" },
-  { label: "{ext}", desc: "Extension" },
-];
-
-interface RenameTabProps {
-  onPatternChange?: (pattern: RenamePattern | null) => void;
-}
-
-export default function RenameTab({ onPatternChange }: RenameTabProps) {
-  const { state } = useAppState();
-  const [pattern, setPattern] = useState<RenamePattern>(defaultPattern);
-  const [showPreview, setShowPreview] = useState(true);
-
-  // Propagate active pattern to parent for Apply button
-  useEffect(() => {
-    const active = (() => {
-      switch (pattern.mode) {
-        case "regex":
-          return (pattern.regex_find ?? "").length > 0;
-        case "template":
-          return (pattern.template ?? "").length > 0;
-        case "numbering":
-          return true;
-      }
-    })();
-    onPatternChange?.(active ? pattern : null);
-  }, [pattern, onPatternChange]);
-
-  const hasInput = useMemo(() => {
-    switch (pattern.mode) {
-      case "regex":
-        return (pattern.regex_find ?? "").length > 0;
-      case "template":
-        return (pattern.template ?? "").length > 0;
-      case "numbering":
-        return true;
-    }
-  }, [pattern]);
-
-  const activePattern = hasInput ? pattern : null;
-  const { isLoading, error, totalConflicts } = useRenamePreview(activePattern);
-
-  const updateField = useCallback(
-    <K extends keyof RenamePattern>(key: K, value: RenamePattern[K]) => {
-      setPattern((prev) => ({ ...prev, [key]: value }));
+  const updatePattern = useCallback(
+    (update: Partial<typeof p>) => {
+      dispatch({ type: 'SET_RENAME_PATTERN', pattern: update });
     },
-    [],
+    [dispatch]
   );
 
-  const insertTemplate = useCallback((variable: string) => {
-    setPattern((prev) => ({
-      ...prev,
-      template: (prev.template ?? "") + variable,
-    }));
-  }, []);
+  const previewCount = useMemo(
+    () => state.files.filter((f) => f.transformed_name).length,
+    [state.files]
+  );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 p-4">
       {/* Mode selector */}
-      <div className="flex gap-1 rounded-lg bg-bg-primary p-1">
-        {(["regex", "template", "numbering"] as RenameMode[]).map((mode) => (
+      <div className="flex gap-1 p-1 bg-slate-800/50 rounded-xl">
+        {(
+          [
+            { key: 'regex', label: 'Regex', icon: Regex },
+            { key: 'template', label: 'Template', icon: Type },
+            { key: 'numbering', label: 'Numbering', icon: Hash },
+          ] as const
+        ).map(({ key, label, icon: Icon }) => (
           <button
-            key={mode}
-            onClick={() => updateField("mode", mode)}
-            className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium capitalize transition-colors duration-200 ${
-              pattern.mode === mode
-                ? "bg-accent/15 text-accent"
-                : "text-text-secondary hover:text-text-primary"
-            }`}
+            key={key}
+            onClick={() => updatePattern({ mode: key })}
+            className={`
+              flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg
+              text-xs font-medium transition-all duration-200
+              ${
+                p.mode === key
+                  ? 'bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent)]/20'
+                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-700/50'
+              }
+            `}
           >
-            {mode}
+            <Icon className="w-3.5 h-3.5" />
+            {label}
           </button>
         ))}
       </div>
 
       {/* Regex mode */}
-      {pattern.mode === "regex" && (
+      {p.mode === 'regex' && (
         <>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-text-secondary">Find (regex)</span>
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Find</label>
             <input
               type="text"
-              value={pattern.regex_find ?? ""}
-              onChange={(e) => updateField("regex_find", e.target.value)}
-              placeholder="e.g. photo_(\d+)"
-              className="rounded-lg border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-              spellCheck={false}
+              value={p.regex_find}
+              onChange={(e) => updatePattern({ regex_find: e.target.value })}
+              placeholder="Search pattern..."
+              className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 focus:border-[var(--accent)]/50 transition-all"
             />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-text-secondary">Replace</span>
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Replace with</label>
             <input
               type="text"
-              value={pattern.regex_replace ?? ""}
-              onChange={(e) => updateField("regex_replace", e.target.value)}
-              placeholder="e.g. image_$1"
-              className="rounded-lg border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-              spellCheck={false}
+              value={p.regex_replace}
+              onChange={(e) => updatePattern({ regex_replace: e.target.value })}
+              placeholder="Replacement..."
+              className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 focus:border-[var(--accent)]/50 transition-all"
             />
-          </label>
+          </div>
         </>
       )}
 
       {/* Template mode */}
-      {pattern.mode === "template" && (
+      {p.mode === 'template' && (
         <>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-text-secondary">Template</span>
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Template</label>
             <input
               type="text"
-              value={pattern.template ?? ""}
-              onChange={(e) => updateField("template", e.target.value)}
-              placeholder="e.g. {original}_{number}"
-              className="rounded-lg border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-              spellCheck={false}
+              value={p.template}
+              onChange={(e) => updatePattern({ template: e.target.value })}
+              placeholder="{original}_{number}"
+              className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 focus:border-[var(--accent)]/50 transition-all"
             />
-          </label>
-          <div className="flex flex-wrap gap-1.5">
-            {templateButtons.map((btn) => (
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {['{original}', '{number}', '{date}', '{ext}'].map((token) => (
               <button
-                key={btn.label}
-                onClick={() => insertTemplate(btn.label)}
-                title={btn.desc}
-                className="rounded-md border border-border bg-bg-primary px-2 py-1 text-xs text-text-secondary transition-colors duration-200 hover:border-accent hover:text-accent"
+                key={token}
+                onClick={() =>
+                  updatePattern({ template: (p.template || '') + token })
+                }
+                className="px-2.5 py-1 bg-slate-800/60 border border-slate-700/50 rounded-lg text-xs text-[var(--accent)] hover:bg-[var(--accent)]/10 hover:border-[var(--accent)]/30 transition-all duration-200 font-mono"
               >
-                {btn.label}
+                {token}
               </button>
             ))}
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-xs text-slate-400 mb-1 block">Start #</label>
+              <input
+                type="number"
+                min={0}
+                value={p.start_number}
+                onChange={(e) =>
+                  updatePattern({ start_number: parseInt(e.target.value) || 0 })
+                }
+                className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-xs text-slate-400 mb-1 block">Zero pad</label>
+              <input
+                type="number"
+                min={0}
+                max={10}
+                value={p.zero_pad}
+                onChange={(e) =>
+                  updatePattern({ zero_pad: parseInt(e.target.value) || 0 })
+                }
+                className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all"
+              />
+            </div>
           </div>
         </>
       )}
 
       {/* Numbering mode */}
-      {pattern.mode === "numbering" && (
+      {p.mode === 'numbering' && (
         <>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-secondary">Start</span>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-xs text-slate-400 mb-1 block">Prefix</label>
+              <input
+                type="text"
+                value={p.prefix}
+                onChange={(e) => updatePattern({ prefix: e.target.value })}
+                placeholder="file"
+                className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-xs text-slate-400 mb-1 block">Suffix</label>
+              <input
+                type="text"
+                value={p.suffix}
+                onChange={(e) => updatePattern({ suffix: e.target.value })}
+                placeholder=""
+                className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all"
+              />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-xs text-slate-400 mb-1 block">Start #</label>
               <input
                 type="number"
                 min={0}
-                value={pattern.start_number ?? 1}
-                onChange={(e) => updateField("start_number", parseInt(e.target.value) || 1)}
-                className="rounded-lg border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+                value={p.start_number}
+                onChange={(e) =>
+                  updatePattern({ start_number: parseInt(e.target.value) || 0 })
+                }
+                className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all"
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-secondary">Zero pad</span>
+            </div>
+            <div className="flex-1">
+              <label className="text-xs text-slate-400 mb-1 block">Zero pad</label>
               <input
                 type="number"
-                min={1}
+                min={0}
                 max={10}
-                value={pattern.zero_pad ?? 3}
-                onChange={(e) => updateField("zero_pad", parseInt(e.target.value) || 1)}
-                className="rounded-lg border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+                value={p.zero_pad}
+                onChange={(e) =>
+                  updatePattern({ zero_pad: parseInt(e.target.value) || 0 })
+                }
+                className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all"
               />
-            </label>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-secondary">Prefix</span>
-              <input
-                type="text"
-                value={pattern.prefix ?? ""}
-                onChange={(e) => updateField("prefix", e.target.value)}
-                placeholder="file_"
-                className="rounded-lg border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-secondary">Suffix</span>
-              <input
-                type="text"
-                value={pattern.suffix ?? ""}
-                onChange={(e) => updateField("suffix", e.target.value)}
-                placeholder="_final"
-                className="rounded-lg border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-              />
-            </label>
+            </div>
           </div>
         </>
       )}
 
-      {/* Case transform (shared across modes) */}
-      <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-text-secondary">Case</span>
-        <select
-          value={pattern.case_transform ?? "none"}
-          onChange={(e) => updateField("case_transform", e.target.value as CaseTransform)}
-          className="rounded-lg border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
-        >
-          <option value="none">No change</option>
-          <option value="upper">UPPERCASE</option>
-          <option value="lower">lowercase</option>
-          <option value="title">Title Case</option>
-        </select>
-      </label>
-
-      {/* Error display */}
-      {error && (
-        <p className="rounded-md bg-error/10 px-3 py-2 text-xs text-error" role="alert">
-          {error}
-        </p>
-      )}
-
-      {/* Conflict warning */}
-      {totalConflicts > 0 && (
-        <p className="rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
-          {totalConflicts} naming conflict{totalConflicts > 1 ? "s" : ""} detected
-        </p>
-      )}
-
-      {/* Preview toggle */}
-      <button
-        onClick={() => setShowPreview(!showPreview)}
-        className="flex items-center gap-2 text-xs text-text-secondary transition-colors duration-200 hover:text-text-primary"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={`transition-transform duration-200 ${showPreview ? "rotate-90" : ""}`}
-          aria-hidden="true"
-        >
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-        Preview ({state.previews.length} files)
-        {isLoading && <span className="text-accent">...</span>}
-      </button>
-
-      {/* Preview list */}
-      {showPreview && state.previews.length > 0 && (
-        <div className="max-h-60 overflow-y-auto rounded-lg border border-border bg-bg-primary">
-          {state.previews.map((p) => (
-            <div
-              key={p.file_id}
-              className="flex flex-col border-b border-border/50 px-3 py-1.5 last:border-b-0"
+      {/* Case transform */}
+      <div>
+        <label className="text-xs text-slate-400 mb-1.5 block">Case transform</label>
+        <div className="flex gap-1">
+          {(['none', 'upper', 'lower', 'title'] as const).map((ct) => (
+            <button
+              key={ct}
+              onClick={() => updatePattern({ case_transform: ct })}
+              className={`
+                flex-1 py-1.5 rounded-lg text-xs font-medium transition-all duration-200
+                ${
+                  p.case_transform === ct
+                    ? 'bg-slate-700 text-slate-200'
+                    : 'text-slate-500 hover:text-slate-400 hover:bg-slate-800/50'
+                }
+              `}
             >
-              <span className="truncate text-xs text-text-muted">{p.original_name}</span>
-              <span
-                className={`truncate text-xs font-medium ${
-                  p.has_conflict ? "text-error" : "text-accent"
-                }`}
-              >
-                → {p.transformed_name}
-                {p.has_conflict && " (conflict)"}
-              </span>
-            </div>
+              {ct === 'none' ? 'None' : ct.charAt(0).toUpperCase() + ct.slice(1)}
+            </button>
           ))}
         </div>
-      )}
+      </div>
 
-      {state.files.length === 0 && (
-        <p className="text-center text-xs text-text-muted">
-          Add files to see rename preview
-        </p>
+      {/* Preview count */}
+      {previewCount > 0 && (
+        <div className="text-xs text-slate-500 text-center pt-1">
+          {previewCount} file{previewCount !== 1 ? 's' : ''} previewed
+        </div>
       )}
     </div>
   );

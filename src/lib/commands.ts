@@ -1,127 +1,98 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from '@tauri-apps/api/core';
 import type {
   AddFilesResponse,
-  CancelResponse,
-  CleanupResponse,
-  ConvertOptions,
-  FileInfo,
-  HistoryResponse,
-  IpcError,
-  JobDetail,
-  JobStartResponse,
-  MetadataChanges,
-  MetadataResponse,
   PreviewResponse,
   RenamePattern,
-  Settings,
+  JobStartResponse,
+  FileInfo,
   UndoResponse,
-} from "@/types";
+  HistoryResponse,
+  Settings,
+  AppError,
+} from '@/types';
 
-/** Parse Rust error string "ERROR_CODE: message" into structured error */
-function parseError(error: unknown): IpcError {
-  const str = String(error);
-  const colonIdx = str.indexOf(":");
-  if (colonIdx > 0 && colonIdx < 30) {
+function parseError(err: unknown): AppError {
+  const str = typeof err === 'string' ? err : String(err);
+  const colonIdx = str.indexOf(':');
+  if (colonIdx > 0) {
     return {
-      code: str.slice(0, colonIdx).trim(),
-      message: str.slice(colonIdx + 1).trim(),
+      code: str.substring(0, colonIdx).trim(),
+      message: str.substring(colonIdx + 1).trim(),
     };
   }
-  return { code: "UNKNOWN", message: str };
+  return { code: 'UNKNOWN', message: str };
 }
 
-async function ipcCall<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   try {
-    return await invoke<T>(command, args);
-  } catch (error) {
-    throw parseError(error);
+    return await invoke<T>(cmd, args);
+  } catch (err) {
+    throw parseError(err);
   }
 }
 
-/** Add files from drag-drop or file picker */
+/** Add files from absolute paths (drag-drop or file picker) */
 export async function addFiles(paths: string[]): Promise<AddFilesResponse> {
-  return ipcCall<AddFilesResponse>("add_files", { paths });
+  return safeInvoke('add_files', { paths });
 }
 
-/** Generate rename preview without modifying files */
+/** Preview rename transformations without applying */
 export async function previewRename(
+  fileIds: string[],
   files: FileInfo[],
-  pattern: RenamePattern,
+  pattern: RenamePattern
 ): Promise<PreviewResponse> {
-  return ipcCall<PreviewResponse>("preview_rename", { files, pattern });
+  return safeInvoke('preview_rename', { fileIds, files, pattern });
 }
 
-/** Apply rename operation with backup creation */
+/** Apply rename to files with backup and history recording */
 export async function applyRename(
+  fileIds: string[],
   files: FileInfo[],
-  pattern: RenamePattern,
+  pattern: RenamePattern
 ): Promise<JobStartResponse> {
-  return ipcCall<JobStartResponse>("apply_rename", { files, pattern });
+  return safeInvoke('apply_rename', { fileIds, files, pattern });
 }
 
-/** Convert files to target format */
-export async function convertFiles(
-  files: FileInfo[],
-  options: ConvertOptions,
-): Promise<JobStartResponse> {
-  return ipcCall<JobStartResponse>("convert_files", { files, options });
-}
-
-/** Read metadata from selected files */
-export async function readMetadata(files: FileInfo[]): Promise<MetadataResponse> {
-  return ipcCall<MetadataResponse>("read_metadata", { files });
-}
-
-/** Write metadata changes to files */
-export async function writeMetadata(
-  files: FileInfo[],
-  changes: MetadataChanges,
-): Promise<JobStartResponse> {
-  return ipcCall<JobStartResponse>("write_metadata", { files, changes });
-}
-
-/** Get paginated job history */
-export async function getJobHistory(
-  limit: number = 50,
-  offset: number = 0,
-  search?: string,
-): Promise<HistoryResponse> {
-  return ipcCall<HistoryResponse>("get_job_history", { limit, offset, search });
-}
-
-/** Get detailed job information */
-export async function getJobDetail(jobId: string): Promise<JobDetail> {
-  return ipcCall<JobDetail>("get_job_detail", { jobId });
-}
-
-/** Undo a completed job by restoring from backups */
+/** Undo a completed job, restoring original files from backup */
 export async function undoJob(jobId: string): Promise<UndoResponse> {
-  return ipcCall<UndoResponse>("undo_job", { jobId });
+  return safeInvoke('undo_job', { jobId });
 }
 
-/** Cancel an active job */
-export async function cancelJob(jobId: string): Promise<CancelResponse> {
-  return ipcCall<CancelResponse>("cancel_job", { jobId });
+/** Cancel a running job */
+export async function cancelJob(jobId: string): Promise<boolean> {
+  return safeInvoke('cancel_job', { jobId });
 }
 
-/** Get application settings */
-export async function getSettings(): Promise<{ settings: Settings }> {
-  return ipcCall<{ settings: Settings }>("get_settings");
+/** Get paginated job history with optional search */
+export async function getJobHistory(
+  limit = 50,
+  offset = 0,
+  search?: string
+): Promise<HistoryResponse> {
+  return safeInvoke('get_job_history', { limit, offset, search });
 }
 
-/** Update application settings */
-export async function updateSettings(settings: Partial<Settings>): Promise<void> {
-  return ipcCall<void>("update_settings", { settings });
+/** Get all app settings */
+export async function getSettings(): Promise<Settings> {
+  return safeInvoke('get_settings');
+}
+
+/** Update app settings (partial update) */
+export async function updateSettings(
+  settings: Partial<Settings>
+): Promise<boolean> {
+  // Convert Settings to simple key-value for Rust
+  const kv: Record<string, string> = {};
+  for (const [key, value] of Object.entries(settings)) {
+    if (value !== null && value !== undefined) {
+      kv[key] = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    }
+  }
+  return safeInvoke('update_settings', { settings: kv });
 }
 
 /** Open native file picker dialog */
-export async function openFilePicker(
-  filters?: Array<{ name: string; extensions: string[] }>,
-): Promise<{ paths: string[] }> {
-  return ipcCall<{ paths: string[] }>("open_file_picker", { filters });
-}
-
-/** Clean up old backup files */
-export async function cleanupBackups(olderThanDays?: number): Promise<CleanupResponse> {
-  return ipcCall<CleanupResponse>("cleanup_backups", { olderThanDays });
+export async function openFilePicker(): Promise<string[]> {
+  return safeInvoke('open_file_picker');
 }

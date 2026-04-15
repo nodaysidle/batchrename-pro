@@ -1,124 +1,112 @@
-import type { FileInfo, PreviewResult } from "@/types";
+import { useCallback } from 'react';
+import type { FileInfo } from '@/types';
+import { Music, Image as ImageIcon, Film, FileText, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+
+const TYPE_ICONS = {
+  audio: Music,
+  image: ImageIcon,
+  video: Film,
+  document: FileText,
+};
+
+const TYPE_COLORS = {
+  audio: 'text-purple-400 bg-purple-500/10',
+  image: 'text-emerald-400 bg-emerald-500/10',
+  video: 'text-orange-400 bg-orange-500/10',
+  document: 'text-slate-400 bg-slate-500/10',
+};
+
+const STATUS_STYLES = {
+  pending: '',
+  processing: 'ring-1 ring-yellow-400/30',
+  done: 'ring-1 ring-emerald-400/30',
+  error: 'ring-1 ring-red-400/30',
+};
 
 interface FileCardProps {
   file: FileInfo;
-  preview?: PreviewResult;
   onRemove: (id: string) => void;
 }
 
-const typeIcons: Record<string, string> = {
-  audio: "M9 18V5l12-2v13M9 18c0 1.1-1.3 2-3 2s-3-.9-3-2 1.3-2 3-2 3 .9 3 2zM21 16c0 1.1-1.3 2-3 2s-3-.9-3-2 1.3-2 3-2 3 .9 3 2z",
-  image: "M4 4h16v16H4zM4 4l16 16M20 4L4 20",
-  video: "M23 7l-7 5 7 5V7zM14 5H3c-1 0-2 1-2 2v10c0 1 1 2 2 2h11c1 0 2-1 2-2V7c0-1-1-2-2-2z",
-  document: "M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM14 2v6h6",
-};
+export function FileCard({ file, onRemove }: FileCardProps) {
+  const Icon = TYPE_ICONS[file.file_type];
+  const colorClass = TYPE_COLORS[file.file_type];
+  const statusClass = STATUS_STYLES[file.status];
 
-const statusColors: Record<string, string> = {
-  pending: "bg-text-muted",
-  processing: "bg-warning animate-pulse",
-  success: "bg-success",
-  failed: "bg-error",
-  skipped: "bg-text-muted",
-};
+  const handleRemove = useCallback(() => onRemove(file.id), [file.id, onRemove]);
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-export default function FileCard({ file, preview, onRemove }: FileCardProps) {
-  const transformedName = preview?.transformed_name;
-  const hasConflict = preview?.has_conflict ?? false;
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   return (
-    <div className="group relative flex items-center gap-3 rounded-lg border border-border bg-bg-card px-3 py-2 transition-all duration-200 hover:-translate-y-[1px] hover:border-border-hover hover:shadow-md">
-      {/* Thumbnail / type icon */}
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-bg-primary">
+    <div
+      className={`
+        group flex items-center gap-3 p-3 rounded-xl
+        bg-slate-800/40 border border-slate-700/30
+        hover:bg-slate-800/60 hover:border-slate-600/40 hover:-translate-y-[1px]
+        transition-all duration-200 ease-out
+        ${statusClass}
+      `}
+    >
+      {/* Thumbnail / Icon */}
+      <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${colorClass}`}>
         {file.thumbnail_data_url ? (
           <img
             src={file.thumbnail_data_url}
             alt=""
-            className="h-full w-full object-cover"
+            className="w-10 h-10 rounded-lg object-cover"
           />
         ) : (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-text-muted"
-            aria-hidden="true"
-          >
-            <path d={typeIcons[file.file_type] ?? typeIcons.document} />
-          </svg>
+          <Icon className="w-5 h-5" />
         )}
       </div>
 
-      {/* File info */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-medium text-text-primary">
-            {file.original_name}
-          </p>
-          {/* Format badge */}
-          <span className="shrink-0 rounded bg-bg-primary px-1.5 py-0.5 text-[10px] font-medium uppercase text-text-muted">
-            {file.extension}
-          </span>
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-slate-200 truncate font-medium">
+          {file.original_name}
+        </p>
+        <div className="flex items-center gap-2 mt-0.5">
+          {file.transformed_name && (
+            <p className="text-xs text-[var(--accent)] truncate font-medium">
+              → {file.transformed_name}
+            </p>
+          )}
+          {!file.transformed_name && (
+            <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full font-medium ${colorClass}`}>
+              {file.extension || file.file_type}
+            </span>
+          )}
         </div>
+      </div>
 
-        {/* Transformed name preview */}
-        {transformedName && (
-          <p
-            className={`truncate text-xs ${hasConflict ? "text-error" : "text-accent"}`}
-          >
-            → {transformedName}
-            {hasConflict && " (conflict)"}
-          </p>
+      {/* Size */}
+      <span className="text-xs text-slate-500 flex-shrink-0">
+        {formatSize(file.size_bytes)}
+      </span>
+
+      {/* Status */}
+      <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
+        {file.status === 'processing' && (
+          <Loader2 className="w-4 h-4 text-yellow-400 animate-spin" />
         )}
-
-        {!transformedName && (
-          <p className="text-xs text-text-muted">
-            {formatBytes(file.size_bytes)}
-          </p>
+        {file.status === 'done' && (
+          <CheckCircle className="w-4 h-4 text-emerald-400" />
+        )}
+        {file.status === 'error' && (
+          <AlertCircle className="w-4 h-4 text-red-400" />
         )}
       </div>
 
-      {/* Status indicator */}
-      <div
-        className={`h-2 w-2 shrink-0 rounded-full ${statusColors[file.status] ?? statusColors.pending}`}
-        aria-label={`Status: ${file.status}`}
-      />
-
-      {/* Remove button - visible on hover */}
+      {/* Remove button */}
       <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove(file.id);
-        }}
-        className="absolute -right-1 -top-1 hidden rounded-full bg-error p-0.5 text-white opacity-0 transition-opacity duration-200 group-hover:block group-hover:opacity-100"
-        aria-label={`Remove ${file.original_name}`}
+        onClick={handleRemove}
+        className="flex-shrink-0 w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-slate-500 hover:text-red-400"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
+        <X className="w-4 h-4" />
       </button>
     </div>
   );

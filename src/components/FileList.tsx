@@ -1,71 +1,88 @@
-import { useMemo } from "react";
-import { List } from "react-window";
-import type { RowComponentProps } from "react-window";
-import FileCard from "./FileCard";
-import type { FileInfo, PreviewResult } from "@/types";
+import { useCallback } from 'react';
+import { useAppState, useFileStats } from '@/state/AppStateContext';
+import { FixedSizeList as List } from 'react-window';
+import { FileCard } from './FileCard';
+import { Trash2 } from 'lucide-react';
 
-const ROW_HEIGHT = 56;
-const VIRTUALIZE_THRESHOLD = 100;
+export function FileList() {
+  const { state, dispatch } = useAppState();
+  const stats = useFileStats();
 
-interface FileListProps {
-  files: FileInfo[];
-  previews: PreviewResult[];
-  onRemoveFile: (id: string) => void;
-}
+  const handleRemove = useCallback(
+    (id: string) => {
+      dispatch({ type: 'REMOVE_FILE', id });
+    },
+    [dispatch]
+  );
 
-interface RowData {
-  files: FileInfo[];
-  previewMap: Map<string, PreviewResult>;
-  onRemoveFile: (id: string) => void;
-}
+  const handleClearAll = useCallback(() => {
+    dispatch({ type: 'CLEAR_FILES' });
+  }, [dispatch]);
 
-function Row({ index, style, ...rowProps }: RowComponentProps<RowData>) {
-  const { files, previewMap, onRemoveFile } = rowProps as RowData;
-  const file = files[index];
+  if (state.files.length === 0) return null;
+
   return (
-    <div style={style} className="px-2 py-1">
-      <FileCard
-        file={file}
-        preview={previewMap.get(file.id)}
-        onRemove={onRemoveFile}
-      />
-    </div>
-  );
-}
-
-export default function FileList({ files, previews, onRemoveFile }: FileListProps) {
-  const previewMap = useMemo(
-    () => new Map(previews.map((p) => [p.file_id, p])),
-    [previews],
-  );
-
-  if (files.length === 0) return null;
-
-  // Use virtualization for large lists
-  if (files.length >= VIRTUALIZE_THRESHOLD) {
-    return (
-      <div className="h-full w-full">
-        <List
-          rowComponent={Row}
-          rowCount={files.length}
-          rowHeight={ROW_HEIGHT}
-          rowProps={{ files, previewMap, onRemoveFile }}
-        />
+    <div className="flex flex-col gap-3">
+      {/* Header */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-3">
+          <h3 className="text-sm font-medium text-slate-300">
+            {stats.total} file{stats.total !== 1 ? 's' : ''}
+          </h3>
+          <div className="flex gap-2 text-xs">
+            {stats.pending > 0 && (
+              <span className="text-slate-500">{stats.pending} pending</span>
+            )}
+            {stats.processing > 0 && (
+              <span className="text-yellow-400 animate-pulse">
+                {stats.processing} processing
+              </span>
+            )}
+            {stats.done > 0 && (
+              <span className="text-emerald-400">{stats.done} done</span>
+            )}
+            {stats.error > 0 && (
+              <span className="text-red-400">{stats.error} error</span>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={handleClearAll}
+          className="flex items-center gap-1 text-xs text-slate-500 hover:text-red-400 transition-colors duration-200"
+        >
+          <Trash2 className="w-3 h-3" />
+          Clear all
+        </button>
       </div>
-    );
-  }
 
-  // Simple list for small file counts
-  return (
-    <div className="flex h-full w-full flex-col gap-1 overflow-y-auto px-2 py-1">
-      {files.map((file) => (
-        <FileCard
-          key={file.id}
-          file={file}
-          preview={previewMap.get(file.id)}
-          onRemove={onRemoveFile}
-        />
-      ))}
+      {/* File list */}
+      {state.files.length > 100 ? (
+        <List
+          height={320}
+          itemCount={state.files.length}
+          itemSize={72}
+          width="100%"
+          className="scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
+        >
+          {({ index, style }) => (
+            <div style={style}>
+              <FileCard file={state.files[index]!} onRemove={handleRemove} />
+            </div>
+          )}
+        </List>
+      ) : (
+        <div className="flex flex-col gap-1 max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+          {state.files.map((file, i) => (
+            <div
+              key={file.id}
+              style={{ animationDelay: `${i * 30}ms` }}
+              className="animate-fade-in"
+            >
+              <FileCard file={file} onRemove={handleRemove} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
