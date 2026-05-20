@@ -1,79 +1,58 @@
-# BatchRename Pro
+<p align="center">
+  <strong>BatchRename Pro</strong>
+</p>
 
-Batch file renaming, format conversion, and metadata editing — one local-first desktop app. No cloud, no scripts, no juggling tools.
+<p align="center">
+  <strong>Batch rename, convert, and edit metadata — one local-first desktop app. No cloud. No scripts.</strong>
+</p>
 
-Built with Tauri 2. Rust backend. React frontend. Ships under 11MB.
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-black?style=flat-square&logo=apple&logoColor=white" alt="Platform">
+  <img src="https://img.shields.io/badge/Tauri-2.0-24C8DB?style=flat-square&logo=tauri&logoColor=white" alt="Tauri">
+  <img src="https://img.shields.io/badge/Rust-2021-orange?style=flat-square&logo=rust&logoColor=white" alt="Rust">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React">
+  <img src="https://img.shields.io/badge/Bundle-~11MB-brightgreen?style=flat-square" alt="Bundle Size">
+  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License">
+</p>
 
-![Platform](https://img.shields.io/badge/macOS-ARM64-blue) ![Platform](https://img.shields.io/badge/Windows-x64-blue) ![Platform](https://img.shields.io/badge/Linux-x64-blue)
+---
 
-## What it does
+BatchRename Pro handles the file operations you do too often to keep doing manually. Rename hundreds of files by regex or template, convert audio/image/video formats, strip or rewrite metadata — all in a single dark-mode app that ships under 11MB. Every operation is backed up and fully undoable.
 
-**Batch Rename** — Regex patterns, template builder with quick-insert tokens (`{date}`, `{number}`, `{original}`, `{ext}`), sequential numbering with zero-padding, case transforms. Live preview before committing.
+---
+
+## What It Does
+
+**Batch Rename** — Regex patterns, template tokens (`{date}`, `{number}`, `{original}`, `{ext}`), sequential numbering with zero-padding, case transforms. Live preview before anything touches disk.
 
 **Format Conversion** — Audio (MP3, WAV, FLAC, M4A), Image (JPG, PNG, WebP, AVIF), Video (MP4, WebM, MKV). Quality controls, parallel processing via Rayon.
 
 **Metadata Editing** — ID3 tag read/write for audio. EXIF read/strip for images. One-click bulk strip.
 
-**Undo Everything** — Every operation creates backups before touching your files. Full undo/rollback from SQLite-backed job history.
+**Undo Everything** — Every operation creates a backup before execution. Full rollback from SQLite-backed job history.
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────┐
-│  WebView (React 19 + TypeScript + Tailwind CSS) │
-│  ┌──────────┬──────────────┬──────────────────┐ │
-│  │ DropZone │  FileList    │ TransformPanel   │ │
-│  │          │  (virtualized│  Rename│Convert  │ │
-│  │          │   100+ files)│  │Metadata       │ │
-│  └──────────┴──────────────┴──────────────────┘ │
-│                  ActionFooter                    │
-└──────────────────┬──────────────────────────────┘
-                   │ Tauri IPC
-┌──────────────────┴──────────────────────────────┐
-│  Rust Backend                                   │
-│  ┌──────────┬──────────┬────────────────────┐   │
-│  │ Preview  │ File     │ Processing         │   │
-│  │ Service  │ Service  │ Pipeline (Rayon)   │   │
-│  │          │          │                    │   │
-│  │ Regex    │ Backup   │ Parallel rename    │   │
-│  │ Template │ Restore  │ Progress events    │   │
-│  │ Numbering│ Validate │ Job cancellation   │   │
-│  └──────────┴──────────┴────────────────────┘   │
-│  ┌──────────┬──────────┬────────────────────┐   │
-│  │ SQLite   │ Convert  │ Metadata           │   │
-│  │ (WAL)    │ Service  │ Service            │   │
-│  │          │          │                    │   │
-│  │ History  │ ffmpeg   │ ID3 / EXIF         │   │
-│  │ FTS5     │ image    │ Read / Write       │   │
-│  │ Settings │ crate    │ Strip              │   │
-│  └──────────┴──────────┴────────────────────┘   │
-└─────────────────────────────────────────────────┘
-```
+---
 
 ## Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Tauri 2 |
-| Frontend | Vite 6 + React 19 + TypeScript strict |
-| Styling | Tailwind CSS 4 |
-| Backend | Rust 2021 |
-| Database | SQLite via rusqlite (WAL mode) |
-| Parallelism | Rayon thread pool |
-| Image processing | image crate (pure Rust) |
-| Media conversion | ffmpeg-next bindings |
-| Search | SQLite FTS5 |
-| Icons | Lucide React |
+- **Framework:** Tauri 2
+- **Frontend:** Vite 6 + React 19 + TypeScript strict + Tailwind CSS 4
+- **Backend:** Rust 2021 + Rayon (parallel processing)
+- **Database:** SQLite via rusqlite (WAL mode) + FTS5
+- **Media:** ffmpeg-next bindings, image crate (pure Rust)
 
-## Build
+---
+
+## Building from Source
 
 ```bash
-# Prerequisites
-# - Node 20+
-# - Rust stable 1.75+
-# - Xcode Command Line Tools (macOS)
+git clone https://gitlab.com/NODAYSIDLE/batchrenamepro.git
+cd batchrenamepro
+```
 
-# Install frontend dependencies
+**Prerequisites:** Node 20+, Rust stable 1.75+, Xcode CLI Tools (macOS)
+
+```bash
 npm install
 
 # Development
@@ -83,73 +62,56 @@ npx tauri dev
 npm run build && npx tauri build
 ```
 
-The release binary is at `src-tauri/target/release/bundle/macos/BatchRename Pro.app` on macOS.
+Release binary: `src-tauri/target/release/bundle/macos/BatchRename Pro.app`
 
-## Performance
+---
 
-| Metric | Target | Actual |
-|--------|--------|--------|
-| Rename preview (500 files) | < 100ms | ✅ in-memory, no disk I/O |
-| App bundle size | < 10MB | ~11MB |
-| Cold start | < 2s | ✅ |
-| File hard cap | 5,000 | enforced on add |
+## Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│  WebView (React 19 + TypeScript + Tailwind CSS) │
+│  DropZone │ FileList (virtualized) │ TransformPanel │
+│                   ActionFooter                   │
+└──────────────────┬──────────────────────────────┘
+                   │ Tauri IPC
+┌──────────────────┴──────────────────────────────┐
+│  Rust Backend                                   │
+│  Preview Service │ File Service │ Processing Pipeline (Rayon) │
+│  SQLite (WAL)    │ Convert Service │ Metadata Service │
+└─────────────────────────────────────────────────┘
+```
+
+---
 
 ## UI
 
 Dark mode default. Glassmorphic design. Two accent themes — blue and violet.
 
-- 48px sticky navbar with accent color toggle
 - Drag-drop zone with animated states
 - Virtualized file list (react-window) for 100+ files
-- Collapsible right sidebar with Rename / Convert / Metadata tabs
-- Sticky action footer with Apply, Undo, and History
-
-## Project structure
-
-```
-├── src/                          # React frontend
-│   ├── components/               # UI components
-│   │   ├── DropZone.tsx          # File input (drag-drop + native picker)
-│   │   ├── FileList.tsx          # Virtualized file list
-│   │   ├── FileCard.tsx          # Individual file display
-│   │   ├── RenameTab.tsx         # Rename pattern builder
-│   │   ├── ConvertTab.tsx        # Format conversion UI
-│   │   ├── MetadataTab.tsx       # Metadata editor UI
-│   │   ├── TransformationPanel.tsx # Right sidebar tabs
-│   │   ├── ActionFooter.tsx      # Bottom bar + history
-│   │   └── Navbar.tsx            # Top bar + settings
-│   ├── contexts/                 # React context providers
-│   ├── hooks/                    # Custom hooks
-│   ├── lib/                      # IPC command wrappers
-│   ├── state/                    # useReducer state management
-│   └── types.ts                  # TypeScript interfaces
-├── src-tauri/                    # Rust backend
-│   ├── src/
-│   │   ├── main.rs               # Tauri commands + setup
-│   │   ├── types.rs              # Shared Rust types (serde)
-│   │   ├── db.rs                 # SQLite migrations + CRUD
-│   │   ├── file_service.rs       # File validation + backup
-│   │   ├── preview_service.rs    # Rename pattern engine
-│   │   └── processing_pipeline.rs # Rayon parallel executor
-│   ├── Cargo.toml
-│   └── tauri.conf.json
-├── PRD.md                        # Product requirements
-├── TRD.md                        # Technical requirements
-├── ARD.md                        # Architecture decisions
-├── TASKS.md                      # Task breakdown
-└── AGENTS.md                     # Agent instructions
-```
-
-## Status
-
-MVP: Rename engine fully functional. Drag-drop, live preview, apply with backup, undo, job history, accent themes.
-
-In progress: Format conversion (audio/image/video), metadata editing (ID3/EXIF).
-
-## License
-
-NODAYSIDLE. No days idle.
+- Collapsible right sidebar: Rename / Convert / Metadata tabs
+- Sticky action footer with Apply, Undo, History
 
 ---
 
-Built by [Punto](https://gitlab.com/NODAYSIDLE) — NODAYSIDLE's AI agent, and the mysterious anonymous 3rd partner nobody knows about yet.
+## Performance
+
+- Rename preview (500 files): in-memory, no disk I/O — < 100ms
+- App bundle: ~11MB
+- Cold start: < 2s
+- File hard cap: 5,000 (enforced on add)
+
+---
+
+## Status
+
+MVP: Rename engine complete. Drag-drop, live preview, apply with backup, undo, job history, accent themes.
+
+In progress: Format conversion (audio/image/video), metadata editing (ID3/EXIF).
+
+---
+
+<p align="center">
+  Built by <a href="https://gitlab.com/NODAYSIDLE">NODAYSIDLE</a>
+</p>
