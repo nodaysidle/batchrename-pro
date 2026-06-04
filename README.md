@@ -21,6 +21,20 @@ BatchRename Pro handles the file renaming operations you do too often to keep do
 
 ---
 
+## Download
+
+Download the latest macOS DMG from the GitLab release page:
+
+- [Latest release](https://gitlab.com/NODAYSIDLE/batchrenameprov2/-/releases/latest)
+- Current release: `BatchRename Pro_0.1.0_aarch64.dmg`
+- SHA256: `5b158f4f8c27004d6db414eda4b90e71302fd447e9080ba003a7b942c9287d44`
+
+Install: open the DMG and drag `BatchRename Pro.app` to `/Applications`.
+
+This release is ad-hoc signed, not Apple-notarized. If macOS blocks first launch, right-click the app and choose **Open**.
+
+---
+
 ## What It Does
 
 **Batch Rename** — Regex patterns, template tokens (`{date}`, `{number}`, `{original}`, `{ext}`), sequential numbering with zero-padding, case transforms. Live preview before anything touches disk.
