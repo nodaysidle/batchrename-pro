@@ -46,8 +46,8 @@ BatchRename Pro handles the file renaming operations you do too often to keep do
 ## Building from Source
 
 ```bash
-git clone https://gitlab.com/NODAYSIDLE/batchrenamepro.git
-cd batchrenamepro
+git clone https://gitlab.com/NODAYSIDLE/batchrenameprov2.git
+cd batchrenameprov2
 ```
 
 **Prerequisites:** Node 20+, Rust stable 1.75+, Xcode CLI Tools (macOS)
