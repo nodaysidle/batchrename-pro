@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, type ReactNode } from 'react';
-import type { FileInfo, PreviewPair, JobSummary, Settings, TabType } from '@/types';
+import type { AppError, FileInfo, PreviewPair, JobSummary, Settings, TabType } from '@/types';
 
 // --- State ---
 
@@ -11,6 +11,8 @@ export interface AppState {
   activeTab: TabType;
   history: JobSummary[];
   settings: Settings | null;
+  appError: AppError | null;
+  previewError: string | null;
   lastCompletedJobId: string | null;
   renamePattern: {
     mode: 'regex' | 'template' | 'numbering';
@@ -33,6 +35,8 @@ const initialState: AppState = {
   activeTab: 'rename',
   history: [],
   settings: null,
+  appError: null,
+  previewError: null,
   lastCompletedJobId: null,
   renamePattern: {
     mode: 'regex',
@@ -61,12 +65,15 @@ type AppAction =
   | { type: 'SET_HISTORY'; history: JobSummary[] }
   | { type: 'SET_SETTINGS'; settings: Settings }
   | { type: 'SET_RENAME_PATTERN'; pattern: Partial<AppState['renamePattern']> }
+  | { type: 'SET_PREVIEW_ERROR'; error: string | null }
+  | { type: 'SET_ERROR'; error: AppError }
+  | { type: 'CLEAR_ERROR' }
   | { type: 'SET_PROCESSING'; isProcessing: boolean };
 
 function reducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'ADD_FILES':
-      return { ...state, files: [...state.files, ...action.files] };
+      return { ...state, files: [...state.files, ...action.files], appError: null };
 
     case 'REMOVE_FILE':
       return {
@@ -76,12 +83,13 @@ function reducer(state: AppState, action: AppAction): AppState {
       };
 
     case 'CLEAR_FILES':
-      return { ...state, files: [], previews: [], lastCompletedJobId: null };
+      return { ...state, files: [], previews: [], previewError: null, lastCompletedJobId: null };
 
     case 'SET_PREVIEWS':
       return {
         ...state,
         previews: action.previews,
+        previewError: null,
         files: state.files.map((f) => {
           const preview = action.previews.find((p) => p.file_id === f.id);
           return preview
@@ -126,7 +134,29 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, settings: action.settings };
 
     case 'SET_RENAME_PATTERN':
-      return { ...state, renamePattern: { ...state.renamePattern, ...action.pattern } };
+      return {
+        ...state,
+        renamePattern: { ...state.renamePattern, ...action.pattern },
+        previews: [],
+        previewError: null,
+        files: state.files.map((f) => ({ ...f, transformed_name: null })),
+      };
+
+    case 'SET_PREVIEW_ERROR':
+      return {
+        ...state,
+        previewError: action.error,
+        previews: action.error ? [] : state.previews,
+        files: action.error
+          ? state.files.map((f) => ({ ...f, transformed_name: null }))
+          : state.files,
+      };
+
+    case 'SET_ERROR':
+      return { ...state, appError: action.error };
+
+    case 'CLEAR_ERROR':
+      return { ...state, appError: null };
 
     case 'SET_PROCESSING':
       return { ...state, isProcessing: action.isProcessing };
@@ -177,8 +207,18 @@ export function useCanApply() {
   const { state } = useAppState();
   const p = state.renamePattern;
   const hasPattern =
-    (p.mode === 'regex' && p.regex_find) ||
-    (p.mode === 'template' && p.template) ||
+    (p.mode === 'regex' && p.regex_find.trim()) ||
+    (p.mode === 'template' && p.template.trim()) ||
     (p.mode === 'numbering');
-  return state.files.length > 0 && !!hasPattern && !state.isProcessing;
+  const hasPreviewForEveryFile =
+    state.files.length > 0 && state.previews.length === state.files.length;
+  const hasConflicts = state.previews.some((preview) => preview.has_conflict);
+  return (
+    state.files.length > 0 &&
+    !!hasPattern &&
+    hasPreviewForEveryFile &&
+    !hasConflicts &&
+    !state.previewError &&
+    !state.isProcessing
+  );
 }

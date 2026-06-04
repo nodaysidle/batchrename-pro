@@ -1,33 +1,49 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1e3a5f"/>
-      <stop offset="100%" style="stop-color:#0f172a"/>
+    <linearGradient id="shell" x1="120" y1="80" x2="900" y2="960" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#172554"/>
+      <stop offset="0.45" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#020617"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#60a5fa"/>
-      <stop offset="100%" style="stop-color:#3b82f6"/>
+    <linearGradient id="paper" x1="260" y1="160" x2="690" y2="740" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#cbd5e1"/>
     </linearGradient>
+    <linearGradient id="volt" x1="248" y1="760" x2="780" y2="760" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C8FF00"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="28" stdDeviation="26" flood-color="#020617" flood-opacity="0.45"/>
+    </filter>
   </defs>
-  <!-- Background rounded square -->
-  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
-  <!-- Stacked file pages (back) -->
-  <rect x="140" y="80" width="260" height="320" rx="16" fill="#334155" opacity="0.5"/>
-  <rect x="120" y="100" width="260" height="320" rx="16" fill="#475569" opacity="0.6"/>
-  <!-- Main file page -->
-  <rect x="100" y="120" width="260" height="320" rx="16" fill="#f1f5f9"/>
-  <!-- File lines -->
-  <rect x="140" y="180" width="180" height="8" rx="4" fill="#94a3b8"/>
-  <rect x="140" y="210" width="140" height="8" rx="4" fill="#cbd5e1"/>
-  <rect x="140" y="240" width="160" height="8" rx="4" fill="#cbd5e1"/>
-  <!-- Rename arrow -->
-  <g transform="translate(300, 300)">
-    <circle cx="0" cy="0" r="80" fill="url(#accent)"/>
-    <!-- Pencil/edit icon -->
-    <path d="M-20 20 L15 -15 L25 -5 L-10 30 L-25 33 Z" fill="white" stroke="white" stroke-width="2" stroke-linejoin="round"/>
-    <path d="M15 -15 L25 -25 L35 -15 L25 -5 Z" fill="white" opacity="0.8"/>
-    <!-- Arrow swoosh -->
-    <path d="M-35 -10 Q-15 -40 15 -35" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/>
-    <path d="M10 -42 L18 -33 L7 -30" fill="white"/>
+
+  <rect x="64" y="64" width="896" height="896" rx="210" fill="url(#shell)"/>
+  <path d="M188 805C279 891 430 928 575 891C729 851 844 735 875 586C904 448 861 318 769 233C791 315 754 411 670 469C576 535 442 531 343 464C247 399 194 288 212 184C111 341 101 624 188 805Z" fill="#1e293b" opacity="0.42"/>
+
+  <g filter="url(#shadow)">
+    <path d="M335 164H610L755 309V735C755 777 721 811 679 811H335C293 811 259 777 259 735V240C259 198 293 164 335 164Z" fill="#334155"/>
+    <path d="M305 196H580L725 341V767C725 809 691 843 649 843H305C263 843 229 809 229 767V272C229 230 263 196 305 196Z" fill="#475569"/>
+    <path d="M278 230H554L700 376V794C700 836 666 870 624 870H278C236 870 202 836 202 794V306C202 264 236 230 278 230Z" fill="url(#paper)"/>
+    <path d="M554 230V338C554 359 571 376 592 376H700L554 230Z" fill="#94a3b8"/>
+  </g>
+
+  <g opacity="0.9">
+    <rect x="284" y="414" width="286" height="28" rx="14" fill="#64748b"/>
+    <rect x="284" y="486" width="358" height="28" rx="14" fill="#94a3b8"/>
+    <rect x="284" y="558" width="238" height="28" rx="14" fill="#94a3b8"/>
+  </g>
+
+  <g>
+    <path d="M253 733H702" fill="none" stroke="url(#volt)" stroke-width="76" stroke-linecap="round"/>
+    <path d="M641 642L742 733L641 824" fill="none" stroke="#C8FF00" stroke-width="76" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M783 626H321" fill="none" stroke="#38bdf8" stroke-width="50" stroke-linecap="round" opacity="0.92"/>
+    <path d="M382 566L290 626L382 686" fill="none" stroke="#38bdf8" stroke-width="50" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  </g>
+
+  <g transform="translate(650 248)">
+    <rect x="0" y="0" width="184" height="128" rx="34" fill="#020617" opacity="0.86"/>
+    <text x="92" y="82" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="54" font-weight="800" fill="#C8FF00">A</text>
+    <path d="M52 99H132" stroke="#38bdf8" stroke-width="12" stroke-linecap="round"/>
   </g>
 </svg>

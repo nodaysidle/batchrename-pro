@@ -1,7 +1,8 @@
 import { useCallback, useState, useEffect } from 'react';
-import { addFiles as addFilesCmd } from '@/lib/commands';
+import { addFiles as addFilesCmd, parseError } from '@/lib/commands';
 import { useAppState } from '@/state/AppStateContext';
 import { open } from '@tauri-apps/plugin-dialog';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { FolderOpen, FileUp } from 'lucide-react';
 
 export function DropZone() {
@@ -17,7 +18,7 @@ export function DropZone() {
         const result = await addFilesCmd(paths);
         dispatch({ type: 'ADD_FILES', files: result.files });
       } catch (err) {
-        console.error('Failed to add files:', err);
+        dispatch({ type: 'SET_ERROR', error: parseError(err) });
       } finally {
         setIsLoading(false);
       }
@@ -25,39 +26,38 @@ export function DropZone() {
     [dispatch]
   );
 
-  // Tauri native file drop — gives real filesystem paths
+  // Tauri 2 native file drop — gives real filesystem paths.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let mounted = true;
 
-    import('@tauri-apps/api/event').then(({ listen }) => {
-      listen<string[]>('tauri://file-drop', (event) => {
+    getCurrentWebview()
+      .onDragDropEvent((event) => {
+        if (event.payload.type === 'enter' || event.payload.type === 'over') {
+          setIsDragging(true);
+          return;
+        }
+        if (event.payload.type === 'leave') {
+          setIsDragging(false);
+          return;
+        }
         setIsDragging(false);
-        handleFiles(event.payload);
-      }).then((fn) => (unlisten = fn));
-    });
-
-    return () => unlisten?.();
-  }, [handleFiles]);
-
-  // Drag visual feedback
-  useEffect(() => {
-    let unlistenEnter: (() => void) | undefined;
-    let unlistenLeave: (() => void) | undefined;
-
-    import('@tauri-apps/api/event').then(({ listen }) => {
-      listen('tauri://drag-enter', () => setIsDragging(true)).then(
-        (fn) => (unlistenEnter = fn)
-      );
-      listen('tauri://drag-leave', () => setIsDragging(false)).then(
-        (fn) => (unlistenLeave = fn)
-      );
-    });
+        handleFiles(event.payload.paths);
+      })
+      .then((fn) => {
+        if (mounted) {
+          unlisten = fn;
+        } else {
+          fn();
+        }
+      })
+      .catch((err) => dispatch({ type: 'SET_ERROR', error: parseError(err) }));
 
     return () => {
-      unlistenEnter?.();
-      unlistenLeave?.();
+      mounted = false;
+      unlisten?.();
     };
-  }, []);
+  }, [dispatch, handleFiles]);
 
   // Click to browse — Tauri native dialog
   const handleClick = useCallback(async () => {
@@ -79,13 +79,22 @@ export function DropZone() {
         handleFiles(paths);
       }
     } catch (err) {
-      console.error('File picker error:', err);
+      dispatch({ type: 'SET_ERROR', error: parseError(err) });
     }
-  }, [handleFiles]);
+  }, [dispatch, handleFiles]);
 
   return (
     <div
       onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      aria-label="Add files"
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          handleClick();
+        }
+      }}
       className={`
         relative flex flex-col items-center justify-center gap-4
         rounded-2xl border-2 border-dashed p-12

@@ -63,6 +63,7 @@ pub struct RenamePattern {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct ConvertOptions {
     pub target_format: String,
     pub quality: Option<u8>,
@@ -74,6 +75,7 @@ pub struct ConvertOptions {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct ResizeParams {
     pub width: u32,
     pub height: u32,
@@ -81,6 +83,7 @@ pub struct ResizeParams {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct MetadataChanges {
     pub tags: std::collections::HashMap<String, Option<String>>,
     pub strip_all_exif: bool,
@@ -137,6 +140,7 @@ pub struct JobCompleteEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[allow(dead_code)]
 pub enum JobStatus {
     Running,
     Completed,
@@ -147,6 +151,7 @@ pub enum JobStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[allow(dead_code)]
 pub enum JobType {
     Rename,
     Convert,
@@ -221,6 +226,7 @@ fn num_cpus() -> u32 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct MetadataField {
     pub key: String,
     pub value: String,
@@ -228,6 +234,7 @@ pub struct MetadataField {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct MetadataInfo {
     pub file_id: String,
     pub file_type: String,

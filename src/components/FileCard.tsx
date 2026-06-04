@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { FileInfo } from '@/types';
+import type { FileInfo, PreviewPair } from '@/types';
 import { Music, Image as ImageIcon, Film, FileText, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 const TYPE_ICONS = {
@@ -25,13 +25,16 @@ const STATUS_STYLES = {
 
 interface FileCardProps {
   file: FileInfo;
+  preview?: PreviewPair;
   onRemove: (id: string) => void;
 }
 
-export function FileCard({ file, onRemove }: FileCardProps) {
+export function FileCard({ file, preview, onRemove }: FileCardProps) {
   const Icon = TYPE_ICONS[file.file_type];
   const colorClass = TYPE_COLORS[file.file_type];
-  const statusClass = STATUS_STYLES[file.status];
+  const statusClass = preview?.has_conflict
+    ? 'ring-1 ring-red-400/40 border-red-500/30'
+    : STATUS_STYLES[file.status];
 
   const handleRemove = useCallback(() => onRemove(file.id), [file.id, onRemove]);
 
@@ -71,7 +74,7 @@ export function FileCard({ file, onRemove }: FileCardProps) {
         </p>
         <div className="flex items-center gap-2 mt-0.5">
           {file.transformed_name && (
-            <p className="text-xs text-[var(--accent)] truncate font-medium">
+            <p className={`text-xs truncate font-medium ${preview?.has_conflict ? 'text-red-300' : 'text-[var(--accent)]'}`}>
               → {file.transformed_name}
             </p>
           )}
@@ -81,6 +84,11 @@ export function FileCard({ file, onRemove }: FileCardProps) {
             </span>
           )}
         </div>
+        {preview?.has_conflict && (
+          <p className="text-[11px] text-red-300 truncate mt-0.5">
+            {preview.conflict_reason || 'Conflicting output'}
+          </p>
+        )}
       </div>
 
       {/* Size */}
@@ -99,15 +107,22 @@ export function FileCard({ file, onRemove }: FileCardProps) {
         {file.status === 'error' && (
           <AlertCircle className="w-4 h-4 text-red-400" />
         )}
+        {file.status === 'pending' && preview?.has_conflict && (
+          <AlertCircle className="w-4 h-4 text-red-400" />
+        )}
       </div>
 
       {/* Remove button */}
       <button
         onClick={handleRemove}
+        aria-label={`Remove ${file.original_name}`}
         className="flex-shrink-0 w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-slate-500 hover:text-red-400"
       >
         <X className="w-4 h-4" />
       </button>
+      {preview?.has_conflict && (
+        <span className="sr-only">{preview.conflict_reason}</span>
+      )}
     </div>
   );
 }

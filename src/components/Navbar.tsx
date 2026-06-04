@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Settings, Moon, Sun, HelpCircle, Zap } from 'lucide-react';
+import { Settings, Moon, Sun, HelpCircle, Zap, X } from 'lucide-react';
 
 export function Navbar() {
   const { theme, toggleTheme, accentColor, setAccentColor } = useTheme();
   const [showSettings, setShowSettings] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   return (
     <nav className="sticky top-0 z-40 flex items-center justify-between px-6 h-12 bg-slate-900/80 border-b border-slate-700/30 backdrop-blur-xl">
@@ -52,13 +53,14 @@ export function Navbar() {
         <button
           onClick={() => setShowSettings(!showSettings)}
           className="p-2 rounded-lg text-slate-400 hover:text-slate-300 hover:bg-slate-800/50 transition-all duration-200"
-          aria-label="Settings"
+          aria-label="Appearance"
         >
           <Settings className="w-4 h-4" />
         </button>
 
         {/* Help */}
         <button
+          onClick={() => setShowHelp(true)}
           className="p-2 rounded-lg text-slate-400 hover:text-slate-300 hover:bg-slate-800/50 transition-all duration-200"
           aria-label="Help"
         >
@@ -69,7 +71,7 @@ export function Navbar() {
       {/* Settings dropdown */}
       {showSettings && (
         <div className="absolute top-12 right-6 w-64 bg-slate-800 border border-slate-700/50 rounded-xl shadow-2xl shadow-black/40 p-4 z-50">
-          <h3 className="text-sm font-medium text-slate-200 mb-3">Settings</h3>
+          <h3 className="text-sm font-medium text-slate-200 mb-3">Appearance</h3>
           <div className="space-y-3">
             <div>
               <label className="text-xs text-slate-400 mb-1 block">Theme</label>
@@ -78,6 +80,7 @@ export function Navbar() {
                   <button
                     key={t}
                     onClick={() => { if (theme !== t) toggleTheme(); }}
+                    aria-label={`Use ${t} theme`}
                     className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       theme === t
                         ? 'bg-slate-700 text-slate-200'
@@ -96,6 +99,7 @@ export function Navbar() {
                   <button
                     key={c}
                     onClick={() => setAccentColor(c)}
+                    aria-label={`Use ${c} accent color`}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       accentColor === c
                         ? 'bg-slate-700 text-slate-200'
@@ -110,6 +114,37 @@ export function Navbar() {
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-6">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="help-title"
+            className="w-full max-w-lg rounded-xl border border-slate-700/60 bg-slate-900 p-5 shadow-2xl shadow-black/50"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <h2 id="help-title" className="text-sm font-semibold text-slate-100">
+                BatchRename Pro Help
+              </h2>
+              <button
+                type="button"
+                aria-label="Close help"
+                onClick={() => setShowHelp(false)}
+                className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
+              <p>Add files with the picker or by dropping files onto the drop zone.</p>
+              <p>Rename preview updates automatically as you edit regex, template, numbering, and case settings.</p>
+              <p>Apply is disabled when the preview has duplicate names, invalid names, or an existing target file conflict.</p>
+              <p>Before a rename runs, BatchRename Pro creates backups in the app data directory. Undo restores from those backups and removes only renamed outputs known to belong to that job.</p>
             </div>
           </div>
         </div>

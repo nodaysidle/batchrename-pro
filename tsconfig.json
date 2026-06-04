@@ -22,6 +22,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "src-tauri/src/types.ts"],
+  "include": ["src"],
   "exclude": ["node_modules", "src-tauri/target"]
 }

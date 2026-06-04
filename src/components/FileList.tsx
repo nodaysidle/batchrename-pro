@@ -48,6 +48,7 @@ export function FileList() {
         </div>
         <button
           onClick={handleClearAll}
+          aria-label="Clear all files"
           className="flex items-center gap-1 text-xs text-slate-500 hover:text-red-400 transition-colors duration-200"
         >
           <Trash2 className="w-3 h-3" />
@@ -66,7 +67,11 @@ export function FileList() {
         >
           {({ index, style }) => (
             <div style={style}>
-              <FileCard file={state.files[index]!} onRemove={handleRemove} />
+              <FileCard
+                file={state.files[index]!}
+                preview={state.previews.find((preview) => preview.file_id === state.files[index]!.id)}
+                onRemove={handleRemove}
+              />
             </div>
           )}
         </List>
@@ -78,7 +83,11 @@ export function FileList() {
               style={{ animationDelay: `${i * 30}ms` }}
               className="animate-fade-in"
             >
-              <FileCard file={file} onRemove={handleRemove} />
+              <FileCard
+                file={file}
+                preview={state.previews.find((preview) => preview.file_id === file.id)}
+                onRemove={handleRemove}
+              />
             </div>
           ))}
         </div>

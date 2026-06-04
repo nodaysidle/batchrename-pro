@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>Batch rename, convert, and edit metadata — one local-first desktop app. No cloud. No scripts.</strong>
+  <strong>Batch rename files safely in one local-first desktop app. No cloud. No scripts.</strong>
 </p>
 
 <p align="center">
@@ -17,7 +17,7 @@
 
 ---
 
-BatchRename Pro handles the file operations you do too often to keep doing manually. Rename hundreds of files by regex or template, convert audio/image/video formats, strip or rewrite metadata — all in a single dark-mode app that ships under 11MB. Every operation is backed up and fully undoable.
+BatchRename Pro handles the file renaming operations you do too often to keep doing manually. Rename hundreds of files by regex or template in a dark-mode desktop app that ships under 11MB. Rename operations are backed up and undoable.
 
 ---
 
@@ -25,9 +25,9 @@ BatchRename Pro handles the file operations you do too often to keep doing manua
 
 **Batch Rename** — Regex patterns, template tokens (`{date}`, `{number}`, `{original}`, `{ext}`), sequential numbering with zero-padding, case transforms. Live preview before anything touches disk.
 
-**Format Conversion** — Audio (MP3, WAV, FLAC, M4A), Image (JPG, PNG, WebP, AVIF), Video (MP4, WebM, MKV). Quality controls, parallel processing via Rayon.
+**Format Conversion** — Coming soon. Disabled in the current release build.
 
-**Metadata Editing** — ID3 tag read/write for audio. EXIF read/strip for images. One-click bulk strip.
+**Metadata Editing** — Coming soon. Disabled in the current release build.
 
 **Undo Everything** — Every operation creates a backup before execution. Full rollback from SQLite-backed job history.
 
@@ -106,9 +106,9 @@ Dark mode default. Glassmorphic design. Two accent themes — blue and violet.
 
 ## Status
 
-MVP: Rename engine complete. Drag-drop, live preview, apply with backup, undo, job history, accent themes.
+MVP: Rename workflow complete. Picker and drag-drop input, live preview, conflict blocking, apply with backup, undo, job history, accent themes.
 
-In progress: Format conversion (audio/image/video), metadata editing (ID3/EXIF).
+Disabled until fully implemented: Format conversion (audio/image/video), metadata editing (ID3/EXIF).
 
 ---
 

@@ -2,6 +2,8 @@ mod db;
 mod file_service;
 mod preview_service;
 mod processing_pipeline;
+#[cfg(test)]
+mod tests;
 mod types;
 
 use rusqlite::Connection;
@@ -14,7 +16,10 @@ struct AppState {
 }
 
 #[tauri::command]
-async fn add_files(paths: Vec<String>, state: tauri::State<'_, AppState>) -> Result<AddFilesResponse, String> {
+async fn add_files(
+    paths: Vec<String>,
+    state: tauri::State<'_, AppState>,
+) -> Result<AddFilesResponse, String> {
     let db = state.db.lock().unwrap();
     let conn = db.as_ref().ok_or("DB_NOT_INIT")?;
 
@@ -49,7 +54,11 @@ async fn add_files(paths: Vec<String>, state: tauri::State<'_, AppState>) -> Res
 }
 
 #[tauri::command]
-async fn preview_rename(file_ids: Vec<String>, files: Vec<FileInfo>, pattern: RenamePattern) -> Result<PreviewResponse, String> {
+async fn preview_rename(
+    file_ids: Vec<String>,
+    files: Vec<FileInfo>,
+    pattern: RenamePattern,
+) -> Result<PreviewResponse, String> {
     let filtered: Vec<FileInfo> = files
         .into_iter()
         .filter(|f| file_ids.contains(&f.id))
@@ -161,14 +170,23 @@ fn main() {
 
             // Save default settings if none exist
             let defaults = Settings::default();
-            let settings_json = serde_json::to_string(&defaults).unwrap();
             if db::get_setting(&conn, "theme")?.is_none() {
                 for (key, value) in [
                     ("theme", defaults.theme.as_str()),
                     ("accent_color", defaults.accent_color.as_str()),
                     ("max_parallel_jobs", &defaults.max_parallel_jobs.to_string()),
-                    ("auto_backup", if defaults.auto_backup { "true" } else { "false" }),
-                    ("backup_retention_days", &defaults.backup_retention_days.to_string()),
+                    (
+                        "auto_backup",
+                        if defaults.auto_backup {
+                            "true"
+                        } else {
+                            "false"
+                        },
+                    ),
+                    (
+                        "backup_retention_days",
+                        &defaults.backup_retention_days.to_string(),
+                    ),
                     ("file_hard_cap", &defaults.file_hard_cap.to_string()),
                 ] {
                     db::set_setting(&conn, key, value)?;

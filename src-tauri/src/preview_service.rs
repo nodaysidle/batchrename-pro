@@ -1,6 +1,6 @@
-use crate::types::{FileInfo, PreviewPair, RenameMode, RenamePattern, CaseTransform};
-use regex::Regex;
+use crate::types::{CaseTransform, FileInfo, PreviewPair, RenameMode, RenamePattern};
 use chrono::Local;
+use regex::Regex;
 
 pub fn generate_previews(
     files: &[FileInfo],
@@ -19,14 +19,55 @@ pub fn generate_previews(
         });
     }
 
-    // Detect conflicts
+    // Detect conflicts inside the batch. Mark both the first output and later
+    // duplicates so the UI can block the whole unsafe set.
     let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    for (i, preview) in previews.iter_mut().enumerate() {
-        if let Some(&first_idx) = seen.get(&preview.transformed_name) {
-            preview.has_conflict = true;
-            preview.conflict_reason = Some(format!("Duplicates file #{}", first_idx + 1));
+    let mut duplicate_pairs = Vec::new();
+    for (i, preview) in previews.iter().enumerate() {
+        let parent = Path::new(&files[i].original_path)
+            .parent()
+            .unwrap_or(Path::new(""));
+        let key = parent
+            .join(&preview.transformed_name)
+            .to_string_lossy()
+            .to_string();
+        if let Some(&first_idx) = seen.get(&key) {
+            duplicate_pairs.push((first_idx, i));
         } else {
-            seen.insert(preview.transformed_name.clone(), i);
+            seen.insert(key, i);
+        }
+    }
+    for (first_idx, duplicate_idx) in duplicate_pairs {
+        previews[first_idx].has_conflict = true;
+        previews[first_idx].conflict_reason =
+            Some(format!("Duplicates file #{}", duplicate_idx + 1));
+        previews[duplicate_idx].has_conflict = true;
+        previews[duplicate_idx].conflict_reason =
+            Some(format!("Duplicates file #{}", first_idx + 1));
+    }
+
+    for (i, preview) in previews.iter_mut().enumerate() {
+        if preview.has_conflict {
+            continue;
+        }
+        let original_path = Path::new(&files[i].original_path);
+        let parent = original_path.parent().unwrap_or(Path::new(""));
+        let target_path = parent.join(&preview.transformed_name);
+        if target_path.exists() {
+            let target_is_source = target_path
+                .canonicalize()
+                .ok()
+                .and_then(|target| {
+                    original_path
+                        .canonicalize()
+                        .ok()
+                        .map(|source| target == source)
+                })
+                .unwrap_or(false);
+            if !target_is_source {
+                preview.has_conflict = true;
+                preview.conflict_reason = Some("Target already exists".into());
+            }
         }
     }
 
@@ -56,15 +97,18 @@ fn apply_pattern(file: &FileInfo, pattern: &RenamePattern, index: usize) -> Resu
         result = format!("{}{}", result, suffix);
     }
 
+    // Validate the stem before re-adding extensions. A pattern that produces
+    // ".txt" is still an empty user-visible name and must not be applied.
+    if result.trim().is_empty() {
+        return Err("EMPTY_RESULT: Pattern produces empty filename".into());
+    }
+
     // Re-add extension
     if !file.extension.is_empty() {
         result = format!("{}.{}", result, file.extension);
     }
 
-    // Validate: no empty names, no path separators
-    if result.trim().is_empty() {
-        return Err("EMPTY_RESULT: Pattern produces empty filename".into());
-    }
+    // Validate: no path separators
     if result.contains('/') || result.contains('\\') {
         return Err("INVALID_RESULT: Filename contains path separator".into());
     }
@@ -80,10 +124,7 @@ fn apply_regex(stem: &str, pattern: &RenamePattern) -> Result<String, String> {
 
     let re = Regex::new(find).map_err(|e| format!("INVALID_REGEX: {}", e))?;
 
-    let replace = pattern
-        .regex_replace
-        .as_deref()
-        .unwrap_or("");
+    let replace = pattern.regex_replace.as_deref().unwrap_or("");
 
     Ok(re.replace_all(stem, replace).to_string())
 }

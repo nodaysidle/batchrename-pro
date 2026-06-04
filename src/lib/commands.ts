@@ -11,7 +11,19 @@ import type {
   AppError,
 } from '@/types';
 
-function parseError(err: unknown): AppError {
+export function parseError(err: unknown): AppError {
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    'message' in err
+  ) {
+    const appError = err as AppError;
+    return {
+      code: String(appError.code || 'UNKNOWN'),
+      message: String(appError.message || 'Unknown error'),
+    };
+  }
   const str = typeof err === 'string' ? err : String(err);
   const colonIdx = str.indexOf(':');
   if (colonIdx > 0) {

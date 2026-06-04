@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { getSettings, updateSettings } from '@/lib/commands';
+import { getSettings, parseError, updateSettings } from '@/lib/commands';
+import { useAppState } from '@/state/AppStateContext';
 
 interface ThemeContextValue {
   theme: 'dark' | 'light';
@@ -16,6 +17,7 @@ const ACCENT_MAP: Record<string, string> = {
 };
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const { dispatch } = useAppState();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [accentColor, setAccent] = useState('blue');
 
@@ -25,8 +27,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         setTheme(s.theme);
         setAccent(s.accent_color);
       })
-      .catch(() => {});
-  }, []);
+      .catch((err) => dispatch({ type: 'SET_ERROR', error: parseError(err) }));
+  }, [dispatch]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -36,13 +38,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const toggleTheme = useCallback(() => {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
-    updateSettings({ theme: next }).catch(() => {});
-  }, [theme]);
+    updateSettings({ theme: next }).catch((err) =>
+      dispatch({ type: 'SET_ERROR', error: parseError(err) })
+    );
+  }, [dispatch, theme]);
 
   const setAccentColor = useCallback((color: string) => {
     setAccent(color);
-    updateSettings({ accent_color: color as 'blue' | 'violet' }).catch(() => {});
-  }, []);
+    updateSettings({ accent_color: color as 'blue' | 'violet' }).catch((err) =>
+      dispatch({ type: 'SET_ERROR', error: parseError(err) })
+    );
+  }, [dispatch]);
 
   return (
     <ThemeContext.Provider value={{ theme, accentColor, toggleTheme, setAccentColor }}>

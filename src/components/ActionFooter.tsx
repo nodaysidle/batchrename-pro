@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useAppState, useFileStats, useCanApply } from '@/state/AppStateContext';
-import { applyRename as applyRenameCmd, undoJob as undoJobCmd, getJobHistory } from '@/lib/commands';
+import { applyRename as applyRenameCmd, undoJob as undoJobCmd, getJobHistory, parseError } from '@/lib/commands';
 import { Play, Undo2, History, Loader2, CheckCircle, X } from 'lucide-react';
 
 export function ActionFooter() {
@@ -9,10 +9,13 @@ export function ActionFooter() {
   const canApply = useCanApply();
   const [showHistory, setShowHistory] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  const conflictCount = state.previews.filter((preview) => preview.has_conflict).length;
 
   const handleApply = useCallback(async () => {
     if (!canApply) return;
     setIsApplying(true);
+    dispatch({ type: 'CLEAR_ERROR' });
+    dispatch({ type: 'SET_PROCESSING', isProcessing: true });
 
     try {
       const pattern = {
@@ -20,10 +23,10 @@ export function ActionFooter() {
         mode: state.renamePattern.mode,
       };
       const fileIds = state.files.map((f) => f.id);
-      const result = await applyRenameCmd(fileIds, state.files, pattern);
-      dispatch({ type: 'START_JOB', jobId: result.job_id });
+      await applyRenameCmd(fileIds, state.files, pattern);
     } catch (err) {
-      console.error('Apply failed:', err);
+      dispatch({ type: 'SET_PROCESSING', isProcessing: false });
+      dispatch({ type: 'SET_ERROR', error: parseError(err) });
     } finally {
       setIsApplying(false);
     }
@@ -36,9 +39,17 @@ export function ActionFooter() {
       if (result.success) {
         // Refresh files state — all done -> pending
         dispatch({ type: 'CLEAR_FILES' });
+      } else {
+        dispatch({
+          type: 'SET_ERROR',
+          error: {
+            code: 'UNDO_PARTIAL',
+            message: result.errors.map((error) => error.error).join('; ') || 'Undo could not restore every file',
+          },
+        });
       }
     } catch (err) {
-      console.error('Undo failed:', err);
+      dispatch({ type: 'SET_ERROR', error: parseError(err) });
     }
   }, [state.lastCompletedJobId, dispatch]);
 
@@ -48,7 +59,7 @@ export function ActionFooter() {
       dispatch({ type: 'SET_HISTORY', history: result.jobs });
       setShowHistory(true);
     } catch (err) {
-      console.error('History failed:', err);
+      dispatch({ type: 'SET_ERROR', error: parseError(err) });
     }
   }, [dispatch]);
 
@@ -89,6 +100,7 @@ export function ActionFooter() {
       {/* History button */}
       <button
         onClick={handleShowHistory}
+        aria-label="Open job history"
         className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-slate-300 hover:bg-slate-800/50 transition-all duration-200"
       >
         <History className="w-3.5 h-3.5" />
@@ -99,6 +111,7 @@ export function ActionFooter() {
       {state.lastCompletedJobId && !state.isProcessing && (
         <button
           onClick={handleUndo}
+          aria-label="Undo last completed rename job"
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 transition-all duration-200"
         >
           <Undo2 className="w-3.5 h-3.5" />
@@ -110,6 +123,13 @@ export function ActionFooter() {
       <button
         onClick={handleApply}
         disabled={!canApply || isApplying}
+        aria-label={
+          conflictCount > 0
+            ? 'Resolve rename conflicts before applying'
+            : state.previewError
+            ? 'Fix rename pattern before applying'
+            : 'Apply rename'
+        }
         className={`
           flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium
           transition-all duration-200 ease-out
@@ -129,6 +149,17 @@ export function ActionFooter() {
         )}
         {state.isProcessing ? 'Processing...' : 'Apply'}
       </button>
+      {!canApply && !state.isProcessing && (
+        <p className="max-w-56 text-[11px] text-slate-500">
+          {conflictCount > 0
+            ? 'Resolve conflicts first'
+            : state.previewError
+            ? 'Fix pattern first'
+            : state.previews.length !== state.files.length
+            ? 'Waiting for preview'
+            : ''}
+        </p>
+      )}
 
       {/* History dropdown */}
       {showHistory && (
@@ -137,6 +168,7 @@ export function ActionFooter() {
             <h3 className="text-sm font-medium text-slate-200">Job History</h3>
             <button
               onClick={() => setShowHistory(false)}
+              aria-label="Close history"
               className="text-slate-500 hover:text-slate-300"
             >
               <X className="w-4 h-4" />
