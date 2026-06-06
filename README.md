@@ -23,11 +23,11 @@ BatchRename Pro handles the file renaming operations you do too often to keep do
 
 ## Download
 
-Download the latest macOS DMG from the GitLab release page:
+Download the latest macOS DMG from the GitHub release page:
 
-- [BatchRename Pro 0.1.0 release](https://gitlab.com/NODAYSIDLE/batchrenameprov2/-/releases/v0.1.0)
+- [BatchRename Pro 0.1.0 release](https://github.com/nodaysidle/batchrename-pro/releases/tag/v0.1.0)
 - Download file: `BatchRename-Pro-0.1.0-aarch64.dmg`
-- SHA256: `5b158f4f8c27004d6db414eda4b90e71302fd447e9080ba003a7b942c9287d44`
+- SHA256: `ef6e33a03881430c329fd9fd888cf4010142598010a89b535cf0eb2c3948309b`
 
 Install: open the DMG and drag `BatchRename Pro.app` to `/Applications`.
 
@@ -71,8 +71,8 @@ This release is ad-hoc signed, not Apple-notarized. If macOS blocks first launch
 ## Building from Source
 
 ```bash
-git clone https://gitlab.com/NODAYSIDLE/batchrenameprov2.git
-cd batchrenameprov2
+git clone https://github.com/nodaysidle/batchrename-pro.git
+cd batchrename-pro
 ```
 
 **Prerequisites:** Node 20+, Rust stable 1.75+, Xcode CLI Tools (macOS)
@@ -138,5 +138,5 @@ Disabled until fully implemented: Format conversion (audio/image/video), metadat
 ---
 
 <p align="center">
-  Built by <a href="https://gitlab.com/NODAYSIDLE">NODAYSIDLE</a>
+  Built by <a href="https://github.com/nodaysidle">NODAYSIDLE</a>
 </p>

@@ -27,3 +27,4 @@ src-tauri/target/
 *.sw?
 .ant-colony/
 artifacts/
+release/

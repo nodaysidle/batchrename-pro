@@ -3,6 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "author": "nodaysidle <nodaysidle@tutanota.de>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nodaysidle/batchrename-pro.git"
+  },
+  "homepage": "https://github.com/nodaysidle/batchrename-pro#readme",
+  "bugs": {
+    "url": "https://github.com/nodaysidle/batchrename-pro/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
