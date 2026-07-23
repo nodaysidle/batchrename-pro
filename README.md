@@ -1,3 +1,5 @@
+<img src=".github/social-preview.png" alt="BatchRename Pro — NODAYSIDLE" width="100%">
+
 # BatchRename Pro
 
 > Batch rename files safely in one local-first desktop app. No cloud. No scripts.

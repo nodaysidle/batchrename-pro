@@ -1,38 +1,44 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { getSettings, parseError, updateSettings } from '@/lib/commands';
 import { useAppState } from '@/state/AppStateContext';
+import type { AccentColor } from '@/types';
 
 interface ThemeContextValue {
   theme: 'dark' | 'light';
-  accentColor: string;
+  accentColor: AccentColor;
   toggleTheme: () => void;
-  setAccentColor: (color: string) => void;
+  setAccentColor: (color: AccentColor) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-const ACCENT_MAP: Record<string, string> = {
-  blue: '#3B82F6',
-  violet: '#A78BFA',
+const ACCENT_MAP: Record<AccentColor, string> = {
+  volt: '#C8FF00',
+  graphite: '#6B6B80',
 };
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { dispatch } = useAppState();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [accentColor, setAccent] = useState('blue');
+  const [accentColor, setAccent] = useState<AccentColor>('volt');
 
   useEffect(() => {
     getSettings()
       .then((s) => {
         setTheme(s.theme);
-        setAccent(s.accent_color);
+        // Normalize stale persisted values to a valid AccentColor
+        const accent: AccentColor =
+          s.accent_color === 'volt' || s.accent_color === 'graphite'
+            ? s.accent_color
+            : 'volt';
+        setAccent(accent);
       })
       .catch((err) => dispatch({ type: 'SET_ERROR', error: parseError(err) }));
   }, [dispatch]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
-    document.documentElement.style.setProperty('--accent', ACCENT_MAP[accentColor] ?? '#3B82F6');
+    document.documentElement.style.setProperty('--accent', ACCENT_MAP[accentColor] ?? '#C8FF00');
   }, [theme, accentColor]);
 
   const toggleTheme = useCallback(() => {
@@ -43,9 +49,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     );
   }, [dispatch, theme]);
 
-  const setAccentColor = useCallback((color: string) => {
+  const setAccentColor = useCallback((color: AccentColor) => {
     setAccent(color);
-    updateSettings({ accent_color: color as 'blue' | 'violet' }).catch((err) =>
+    updateSettings({ accent_color: color }).catch((err) =>
       dispatch({ type: 'SET_ERROR', error: parseError(err) })
     );
   }, [dispatch]);
