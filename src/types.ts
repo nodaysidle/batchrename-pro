@@ -1,5 +1,6 @@
 export type FileType = 'audio' | 'image' | 'video' | 'document';
 export type FileStatus = 'pending' | 'processing' | 'done' | 'error';
+export type AccentColor = 'volt' | 'graphite';
 
 export interface FileInfo {
   id: string;
@@ -110,7 +111,7 @@ export interface UndoResponse {
 
 export interface Settings {
   theme: 'dark' | 'light';
-  accent_color: 'blue' | 'violet';
+  accent_color: AccentColor;
   default_output_dir: string | null;
   max_parallel_jobs: number;
   auto_backup: boolean;

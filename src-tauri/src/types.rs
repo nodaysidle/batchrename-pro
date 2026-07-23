@@ -207,7 +207,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             theme: "dark".into(),
-            accent_color: "blue".into(),
+            accent_color: "volt".into(),
             default_output_dir: None,
             max_parallel_jobs: num_cpus(),
             auto_backup: true,

@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
-/* Dark theme as default */
+/* Dark theme as default — NODAYSIDLE tokens */
 :root {
-  --accent: #3B82F6;
+  --accent: #C8FF00;
+  --accent-rgb: 200, 255, 0;
 }
 
 /* Custom scrollbar */
@@ -51,12 +52,12 @@
   outline-offset: 2px;
 }
 
-/* Inter font stack */
+/* System font stack */
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 /* JetBrains Mono for code/paths */
 .font-mono {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
 }
