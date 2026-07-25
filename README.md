@@ -11,7 +11,7 @@
 
 ## Overview
 
-BatchRename Pro handles file renaming operations through regex patterns, template tokens, and sequential numbering — with live preview, conflict blocking, backup, and full undo. Ships as a dark-mode Tauri desktop app.
+BatchRename Pro handles file renaming operations through regex patterns, template tokens, and sequential numbering — with live preview, conflict blocking, backup, and full undo. Ships as a Tauri desktop app with dark and light themes.
 
 ## Features
 
@@ -20,9 +20,9 @@ BatchRename Pro handles file renaming operations through regex patterns, templat
 - **Conflict blocking** — detects name collisions before applying
 - **Undo** — every operation creates a backup; full rollback from SQLite-backed job history
 - **Drag-drop input** — drop files or folders directly
-- **Accent themes** — blue and violet
+- **Accent themes** — volt and graphite
 
-Format conversion and metadata editing tabs are present in the UI but disabled until fully implemented.
+Format conversion and metadata editing are **not shipped** in v0.1.0 (backlog). Convert/Metadata tabs are not shown.
 
 ## Technology
 
@@ -77,13 +77,23 @@ Release binary: `src-tauri/target/release/bundle/macos/BatchRename Pro.app`
 ┌──────────────────┴──────────────────────────────┐
 │  Rust Backend                                   │
 │  Preview Service │ File Service │ Processing Pipeline (Rayon) │
-│  SQLite (WAL)    │ Convert/Metadata Services (schema-ready, not shipped) │
+│  SQLite (WAL)    │ Convert/Metadata (not shipped) │
 └─────────────────────────────────────────────────┘
 ```
 
+## UI
+
+Dark mode default with light theme support. Glassmorphic design. Two accent themes — volt and graphite.
+
+- Drag-drop zone with animated states
+- Virtualized file list (react-window) for 100+ files
+- Right sidebar: Rename panel (convert/metadata not shipped)
+- Sticky action footer with Apply, Undo, History (History stays reachable with zero files)
+- Appearance controls for theme and accent (not a full Settings suite)
+
 ## Status
 
-v0.1.0 — Rename workflow complete. Format conversion and metadata editing tabs are disabled until fully implemented.
+v0.1.0 — Rename workflow complete. Format conversion and metadata editing are not shipped.
 
 ## Contributing
 

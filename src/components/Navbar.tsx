@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Settings, Moon, Sun, HelpCircle, Zap, X } from 'lucide-react';
+import { Palette, Moon, Sun, HelpCircle, Zap, X } from 'lucide-react';
 
 const ACCENT_SWATCH: Record<'volt' | 'graphite', string> = {
   volt: '#C8FF00',
@@ -110,7 +110,7 @@ export function Navbar() {
           {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
         </button>
 
-        {/* Settings */}
+        {/* Appearance */}
         <button
           ref={settingsTriggerRef}
           onClick={() => setShowSettings((prev) => !prev)}
@@ -118,8 +118,9 @@ export function Navbar() {
           aria-label="Appearance"
           aria-expanded={showSettings}
           aria-controls="appearance-menu"
+          title="Appearance"
         >
-          <Settings className="w-4 h-4" />
+          <Palette className="w-4 h-4" />
         </button>
 
         {/* Help */}
@@ -135,15 +136,20 @@ export function Navbar() {
         </button>
       </div>
 
-      {/* Settings dropdown */}
+      {/* Appearance dropdown — theme/accent only; no full Settings yet */}
       {showSettings && (
         <div
           id="appearance-menu"
           ref={settingsMenuRef}
+          role="dialog"
+          aria-label="Appearance"
           className="absolute top-12 right-6 w-64 rounded-xl border shadow-2xl shadow-black/40 p-4 z-50"
           style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
         >
-          <h3 className="text-sm font-medium mb-3" style={{ color: 'var(--text)' }}>Appearance</h3>
+          <h3 className="text-sm font-medium" style={{ color: 'var(--text)' }}>Appearance</h3>
+          <p className="mt-1 mb-3 text-[11px] leading-4" style={{ color: 'var(--text-muted)' }}>
+            Theme and accent only. Backup and job options are not configurable in this release.
+          </p>
           <div className="space-y-3">
             <div>
               <label className="text-xs mb-1 block" style={{ color: 'var(--text-muted)' }}>Theme</label>

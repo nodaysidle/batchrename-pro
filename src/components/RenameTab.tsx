@@ -3,6 +3,18 @@ import { useAppState } from '@/state/AppStateContext';
 import { parseError, previewRename } from '@/lib/commands';
 import { Hash, Regex, Type } from 'lucide-react';
 
+const inputClass =
+  'w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 focus:border-[var(--accent)]/50 transition-all placeholder:text-[var(--text-muted)] placeholder:opacity-70';
+
+const inputStyle = {
+  backgroundColor: 'color-mix(in srgb, var(--card) 70%, transparent)',
+  borderColor: 'var(--border)',
+  color: 'var(--text)',
+} as const;
+
+const labelClass = 'text-xs mb-1 block';
+const labelStyle = { color: 'var(--text-muted)' } as const;
+
 export function RenameTab() {
   const { state, dispatch } = useAppState();
   const p = state.renamePattern;
@@ -68,7 +80,10 @@ export function RenameTab() {
   return (
     <div className="flex flex-col gap-4 p-4">
       {/* Mode selector */}
-      <div className="flex gap-1 p-1 bg-slate-800/50 rounded-xl">
+      <div
+        className="flex gap-1 p-1 rounded-xl"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--card) 80%, transparent)' }}
+      >
         {(
           [
             { key: 'regex', label: 'Regex', icon: Regex },
@@ -86,9 +101,10 @@ export function RenameTab() {
               ${
                 p.mode === key
                   ? 'bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent)]/20'
-                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-700/50'
+                  : 'hover:bg-[var(--border)]'
               }
             `}
+            style={p.mode === key ? undefined : { color: 'var(--text-muted)' }}
           >
             <Icon className="w-3.5 h-3.5" />
             {label}
@@ -100,25 +116,31 @@ export function RenameTab() {
       {p.mode === 'regex' && (
         <>
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">Find</label>
+            <label className={labelClass} style={labelStyle}>
+              Find
+            </label>
             <input
               type="text"
               value={p.regex_find}
               onChange={(e) => updatePattern({ regex_find: e.target.value })}
               placeholder="Search pattern..."
               aria-label="Regex find pattern"
-              className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 focus:border-[var(--accent)]/50 transition-all"
+              className={inputClass}
+              style={inputStyle}
             />
           </div>
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">Replace with</label>
+            <label className={labelClass} style={labelStyle}>
+              Replace with
+            </label>
             <input
               type="text"
               value={p.regex_replace}
               onChange={(e) => updatePattern({ regex_replace: e.target.value })}
               placeholder="Replacement..."
               aria-label="Regex replacement"
-              className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 focus:border-[var(--accent)]/50 transition-all"
+              className={inputClass}
+              style={inputStyle}
             />
           </div>
         </>
@@ -128,14 +150,17 @@ export function RenameTab() {
       {p.mode === 'template' && (
         <>
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">Template</label>
+            <label className={labelClass} style={labelStyle}>
+              Template
+            </label>
             <input
               type="text"
               value={p.template}
               onChange={(e) => updatePattern({ template: e.target.value })}
               placeholder="{original}_{number}"
               aria-label="Rename template"
-              className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 focus:border-[var(--accent)]/50 transition-all"
+              className={inputClass}
+              style={inputStyle}
             />
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -146,7 +171,11 @@ export function RenameTab() {
                   updatePattern({ template: (p.template || '') + token })
                 }
                 aria-label={`Insert ${token} token`}
-                className="px-2.5 py-1 bg-slate-800/60 border border-slate-700/50 rounded-lg text-xs text-[var(--accent)] hover:bg-[var(--accent)]/10 hover:border-[var(--accent)]/30 transition-all duration-200 font-mono"
+                className="px-2.5 py-1 rounded-lg text-xs text-[var(--accent)] border font-mono transition-all duration-200 hover:bg-[var(--accent)]/10 hover:border-[var(--accent)]/30"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--card) 70%, transparent)',
+                  borderColor: 'var(--border)',
+                }}
               >
                 {token}
               </button>
@@ -154,7 +183,9 @@ export function RenameTab() {
           </div>
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="text-xs text-slate-400 mb-1 block">Start #</label>
+              <label className={labelClass} style={labelStyle}>
+                Start #
+              </label>
               <input
                 type="number"
                 min={0}
@@ -163,11 +194,14 @@ export function RenameTab() {
                 onChange={(e) =>
                   updatePattern({ start_number: parseInt(e.target.value) || 0 })
                 }
-                className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all"
+                className={inputClass}
+                style={inputStyle}
               />
             </div>
             <div className="flex-1">
-              <label className="text-xs text-slate-400 mb-1 block">Zero pad</label>
+              <label className={labelClass} style={labelStyle}>
+                Zero pad
+              </label>
               <input
                 type="number"
                 min={0}
@@ -177,7 +211,8 @@ export function RenameTab() {
                 onChange={(e) =>
                   updatePattern({ zero_pad: parseInt(e.target.value) || 0 })
                 }
-                className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all"
+                className={inputClass}
+                style={inputStyle}
               />
             </div>
           </div>
@@ -189,31 +224,39 @@ export function RenameTab() {
         <>
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="text-xs text-slate-400 mb-1 block">Prefix</label>
+              <label className={labelClass} style={labelStyle}>
+                Prefix
+              </label>
               <input
                 type="text"
                 value={p.prefix}
                 onChange={(e) => updatePattern({ prefix: e.target.value })}
                 placeholder="file"
                 aria-label="Numbering prefix"
-                className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all"
+                className={inputClass}
+                style={inputStyle}
               />
             </div>
             <div className="flex-1">
-              <label className="text-xs text-slate-400 mb-1 block">Suffix</label>
+              <label className={labelClass} style={labelStyle}>
+                Suffix
+              </label>
               <input
                 type="text"
                 value={p.suffix}
                 onChange={(e) => updatePattern({ suffix: e.target.value })}
                 placeholder=""
                 aria-label="Numbering suffix"
-                className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all"
+                className={inputClass}
+                style={inputStyle}
               />
             </div>
           </div>
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="text-xs text-slate-400 mb-1 block">Start #</label>
+              <label className={labelClass} style={labelStyle}>
+                Start #
+              </label>
               <input
                 type="number"
                 min={0}
@@ -222,11 +265,14 @@ export function RenameTab() {
                 onChange={(e) =>
                   updatePattern({ start_number: parseInt(e.target.value) || 0 })
                 }
-                className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all"
+                className={inputClass}
+                style={inputStyle}
               />
             </div>
             <div className="flex-1">
-              <label className="text-xs text-slate-400 mb-1 block">Zero pad</label>
+              <label className={labelClass} style={labelStyle}>
+                Zero pad
+              </label>
               <input
                 type="number"
                 min={0}
@@ -236,7 +282,8 @@ export function RenameTab() {
                 onChange={(e) =>
                   updatePattern({ zero_pad: parseInt(e.target.value) || 0 })
                 }
-                className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all"
+                className={inputClass}
+                style={inputStyle}
               />
             </div>
           </div>
@@ -245,7 +292,9 @@ export function RenameTab() {
 
       {/* Case transform */}
       <div>
-        <label className="text-xs text-slate-400 mb-1.5 block">Case transform</label>
+        <label className="text-xs mb-1.5 block" style={labelStyle}>
+          Case transform
+        </label>
         <div className="flex gap-1">
           {(['none', 'upper', 'lower', 'title'] as const).map((ct) => (
             <button
@@ -254,12 +303,13 @@ export function RenameTab() {
               aria-label={`Use ${ct} case transform`}
               className={`
                 flex-1 py-1.5 rounded-lg text-xs font-medium transition-all duration-200
-                ${
-                  p.case_transform === ct
-                    ? 'bg-slate-700 text-slate-200'
-                    : 'text-slate-500 hover:text-slate-400 hover:bg-slate-800/50'
-                }
+                ${p.case_transform === ct ? '' : 'hover:bg-[var(--border)]'}
               `}
+              style={
+                p.case_transform === ct
+                  ? { backgroundColor: 'var(--border)', color: 'var(--text)' }
+                  : { color: 'var(--text-muted)' }
+              }
             >
               {ct === 'none' ? 'None' : ct.charAt(0).toUpperCase() + ct.slice(1)}
             </button>
@@ -269,19 +319,33 @@ export function RenameTab() {
 
       {/* Preview count */}
       {state.previewError && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+        <div
+          className="rounded-lg border px-3 py-2 text-xs"
+          style={{
+            borderColor: 'var(--danger-border)',
+            backgroundColor: 'var(--danger-bg)',
+            color: 'var(--danger-text)',
+          }}
+        >
           {state.previewError}
         </div>
       )}
 
       {conflictCount > 0 && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+        <div
+          className="rounded-lg border px-3 py-2 text-xs"
+          style={{
+            borderColor: 'var(--danger-border)',
+            backgroundColor: 'var(--danger-bg)',
+            color: 'var(--danger-text)',
+          }}
+        >
           {conflictCount} conflict{conflictCount !== 1 ? 's' : ''} found. Resolve conflicts before applying.
         </div>
       )}
 
       {previewCount > 0 && (
-        <div className="text-xs text-slate-500 text-center pt-1">
+        <div className="text-xs text-center pt-1" style={{ color: 'var(--text-muted)' }}>
           {previewCount} file{previewCount !== 1 ? 's' : ''} previewed
         </div>
       )}

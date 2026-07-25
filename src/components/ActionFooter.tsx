@@ -20,6 +20,7 @@ export function ActionFooter() {
   const conflictCount = state.previews.filter((preview) => preview.has_conflict).length;
   const historyTriggerRef = useRef<HTMLButtonElement>(null);
   const historyPanelRef = useRef<HTMLDivElement>(null);
+  const hasFiles = state.files.length > 0;
 
   const handleApply = useCallback(async () => {
     if (!canApply) return;
@@ -134,8 +135,6 @@ export function ActionFooter() {
     };
   }, [showHistory, closeHistory]);
 
-  if (state.files.length === 0) return null;
-
   const progressPercent = state.isProcessing
     ? stats.total > 0
       ? ((stats.done + stats.error) / stats.total) * 100
@@ -147,6 +146,116 @@ export function ActionFooter() {
     : state.lastCompletedJobId
     ? 'Rename job complete'
     : '';
+
+  const historyPanel = showHistory ? (
+    <div
+      id="history-panel"
+      ref={historyPanelRef}
+      role="dialog"
+      aria-label="Job history"
+      className="fixed bottom-16 right-6 w-80 max-h-96 overflow-y-auto rounded-xl border shadow-2xl shadow-black/40 z-50"
+      style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+    >
+      <div className="flex items-center justify-between p-3 border-b" style={{ borderColor: 'var(--border)' }}>
+        <h3 className="text-sm font-medium" style={{ color: 'var(--text)' }}>Job History</h3>
+        <button
+          onClick={closeHistory}
+          aria-label="Close history"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="p-2">
+        {state.history.length === 0 ? (
+          <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>
+            No jobs yet
+          </p>
+        ) : (
+          state.history.map((job) => (
+            <div
+              key={job.id}
+              className="flex items-center gap-3 p-2 rounded-lg transition-colors hover:bg-[var(--border)]"
+            >
+              <div className="flex-shrink-0">
+                {job.status === 'completed' ? (
+                  <CheckCircle className="w-4 h-4 text-emerald-400" />
+                ) : job.status === 'partial' ? (
+                  <CheckCircle className="w-4 h-4 text-yellow-400" />
+                ) : (
+                  <X className="w-4 h-4 text-red-400" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs truncate" style={{ color: 'var(--text)' }}>
+                  {job.description}
+                </p>
+                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  {job.file_count} files · {job.operation_type} ·{' '}
+                  {new Date(job.timestamp).toLocaleString()}
+                </p>
+              </div>
+              {job.can_undo && (
+                <button
+                  onClick={() => runUndo(job.id)}
+                  disabled={state.isProcessing || undoingJobId === job.id}
+                  aria-label={`Undo job from ${new Date(job.timestamp).toLocaleString()}`}
+                  className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] hover:text-amber-400 hover:bg-amber-500/10 transition-all duration-200 disabled:opacity-50"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  <Undo2 className="w-3 h-3" />
+                  Undo
+                </button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  ) : null;
+
+  const historyButton = (
+    <button
+      ref={historyTriggerRef}
+      onClick={handleShowHistory}
+      aria-label="Open job history"
+      aria-expanded={showHistory}
+      aria-controls="history-panel"
+      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs transition-all duration-200 hover:bg-[var(--border)]"
+      style={{ color: 'var(--text-muted)' }}
+    >
+      <History className="w-3.5 h-3.5" />
+      History
+    </button>
+  );
+
+  const undoButton =
+    state.lastCompletedJobId && !state.isProcessing ? (
+      <button
+        onClick={handleUndo}
+        disabled={undoingJobId === state.lastCompletedJobId}
+        aria-label="Undo last completed rename job"
+        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs hover:text-amber-400 hover:bg-amber-500/10 transition-all duration-200 disabled:opacity-50"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        <Undo2 className="w-3.5 h-3.5" />
+        Undo
+      </button>
+    ) : null;
+
+  // Slim footer when no files — keep History (and Undo) reachable
+  if (!hasFiles) {
+    return (
+      <div
+        className="sticky bottom-0 left-0 right-0 flex items-center justify-end gap-3 px-6 py-2.5 border-t backdrop-blur-xl"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--card) 90%, transparent)', borderColor: 'var(--border)' }}
+      >
+        {historyButton}
+        {undoButton}
+        {historyPanel}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -181,33 +290,9 @@ export function ActionFooter() {
       {/* Spacer when not processing */}
       {!state.isProcessing && <div className="flex-1" />}
 
-      {/* History button */}
-      <button
-        ref={historyTriggerRef}
-        onClick={handleShowHistory}
-        aria-label="Open job history"
-        aria-expanded={showHistory}
-        aria-controls="history-panel"
-        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs transition-all duration-200 hover:bg-[var(--border)]"
-        style={{ color: 'var(--text-muted)' }}
-      >
-        <History className="w-3.5 h-3.5" />
-        History
-      </button>
+      {historyButton}
 
-      {/* Undo button */}
-      {state.lastCompletedJobId && !state.isProcessing && (
-        <button
-          onClick={handleUndo}
-          disabled={undoingJobId === state.lastCompletedJobId}
-          aria-label="Undo last completed rename job"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs hover:text-amber-400 hover:bg-amber-500/10 transition-all duration-200 disabled:opacity-50"
-          style={{ color: 'var(--text-muted)' }}
-        >
-          <Undo2 className="w-3.5 h-3.5" />
-          Undo
-        </button>
-      )}
+      {undoButton}
 
       {/* Cancel button (during processing) */}
       {state.isProcessing && state.activeJobId && (
@@ -270,73 +355,7 @@ export function ActionFooter() {
         </p>
       )}
 
-      {/* History dropdown */}
-      {showHistory && (
-        <div
-          id="history-panel"
-          ref={historyPanelRef}
-          role="dialog"
-          aria-label="Job history"
-          className="fixed bottom-16 right-6 w-80 max-h-96 overflow-y-auto rounded-xl border shadow-2xl shadow-black/40 z-50"
-          style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-        >
-          <div className="flex items-center justify-between p-3 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h3 className="text-sm font-medium" style={{ color: 'var(--text)' }}>Job History</h3>
-            <button
-              onClick={closeHistory}
-              aria-label="Close history"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="p-2">
-            {state.history.length === 0 ? (
-              <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>
-                No jobs yet
-              </p>
-            ) : (
-              state.history.map((job) => (
-                <div
-                  key={job.id}
-                  className="flex items-center gap-3 p-2 rounded-lg transition-colors hover:bg-[var(--border)]"
-                >
-                  <div className="flex-shrink-0">
-                    {job.status === 'completed' ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-400" />
-                    ) : job.status === 'partial' ? (
-                      <CheckCircle className="w-4 h-4 text-yellow-400" />
-                    ) : (
-                      <X className="w-4 h-4 text-red-400" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs truncate" style={{ color: 'var(--text)' }}>
-                      {job.description}
-                    </p>
-                    <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                      {job.file_count} files · {job.operation_type} ·{' '}
-                      {new Date(job.timestamp).toLocaleString()}
-                    </p>
-                  </div>
-                  {job.can_undo && (
-                    <button
-                      onClick={() => runUndo(job.id)}
-                      disabled={state.isProcessing || undoingJobId === job.id}
-                      aria-label={`Undo job from ${new Date(job.timestamp).toLocaleString()}`}
-                      className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] hover:text-amber-400 hover:bg-amber-500/10 transition-all duration-200 disabled:opacity-50"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      <Undo2 className="w-3 h-3" />
-                      Undo
-                    </button>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
+      {historyPanel}
     </div>
   );
 }
