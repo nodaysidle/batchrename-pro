@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import type { FileInfo, PreviewPair } from '@/types';
+import { useCallback, type CSSProperties } from 'react';
+import type { FileInfo, FileType, FileStatus, PreviewPair } from '@/types';
 import { Music, Image as ImageIcon, Film, FileText, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 const TYPE_ICONS = {
@@ -9,19 +9,35 @@ const TYPE_ICONS = {
   document: FileText,
 };
 
-const TYPE_COLORS = {
-  audio: 'text-purple-400 bg-purple-500/10',
-  image: 'text-emerald-400 bg-emerald-500/10',
-  video: 'text-orange-400 bg-orange-500/10',
-  document: 'text-slate-400 bg-slate-500/10',
+const TYPE_STYLES: Record<FileType, CSSProperties> = {
+  audio: { color: 'var(--type-audio)', backgroundColor: 'var(--type-audio-bg)' },
+  image: { color: 'var(--type-image)', backgroundColor: 'var(--type-image-bg)' },
+  video: { color: 'var(--type-video)', backgroundColor: 'var(--type-video-bg)' },
+  document: { color: 'var(--type-document)', backgroundColor: 'var(--type-document-bg)' },
 };
 
-const STATUS_STYLES = {
-  pending: '',
-  processing: 'ring-1 ring-yellow-400/30',
-  done: 'ring-1 ring-emerald-400/30',
-  error: 'ring-1 ring-red-400/30',
-};
+function statusRingStyle(status: FileStatus, hasConflict: boolean): CSSProperties {
+  if (hasConflict) {
+    return {
+      boxShadow: 'inset 0 0 0 1px var(--danger-border)',
+      borderColor: 'var(--danger-border)',
+    };
+  }
+  switch (status) {
+    case 'pending':
+      return {};
+    case 'processing':
+      return { boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--warning) 35%, transparent)' };
+    case 'done':
+      return { boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--success) 35%, transparent)' };
+    case 'error':
+      return { boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--danger) 40%, transparent)' };
+    default: {
+      const _exhaustive: never = status;
+      return _exhaustive;
+    }
+  }
+}
 
 interface FileCardProps {
   file: FileInfo;
@@ -31,10 +47,9 @@ interface FileCardProps {
 
 export function FileCard({ file, preview, onRemove }: FileCardProps) {
   const Icon = TYPE_ICONS[file.file_type];
-  const colorClass = TYPE_COLORS[file.file_type];
-  const statusClass = preview?.has_conflict
-    ? 'ring-1 ring-red-400/40 border-red-500/30'
-    : STATUS_STYLES[file.status];
+  const typeStyle = TYPE_STYLES[file.file_type];
+  const hasConflict = Boolean(preview?.has_conflict);
+  const ringStyle = statusRingStyle(file.status, hasConflict);
 
   const handleRemove = useCallback(() => onRemove(file.id), [file.id, onRemove]);
 
@@ -49,12 +64,18 @@ export function FileCard({ file, preview, onRemove }: FileCardProps) {
       className={`
         group transition-default hover-lift flex items-center gap-3 p-3 rounded-xl border
         ${file.status === 'error' ? 'shake-error' : ''}
-        ${statusClass}
       `}
-      style={{ backgroundColor: 'color-mix(in srgb, var(--card) 40%, transparent)', borderColor: 'var(--border)' }}
+      style={{
+        backgroundColor: 'color-mix(in srgb, var(--card) 40%, transparent)',
+        borderColor: 'var(--border)',
+        ...ringStyle,
+      }}
     >
       {/* Thumbnail / Icon */}
-      <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${colorClass}`}>
+      <div
+        className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center"
+        style={typeStyle}
+      >
         {file.thumbnail_data_url ? (
           <img
             src={file.thumbnail_data_url}
@@ -73,23 +94,33 @@ export function FileCard({ file, preview, onRemove }: FileCardProps) {
         </p>
         <div className="flex items-center gap-2 mt-0.5">
           {file.transformed_name && (
-            <p className={`text-xs truncate font-medium ${preview?.has_conflict ? 'text-red-300' : 'text-[var(--accent)]'}`}>
+            <p
+              className="text-xs truncate font-medium"
+              style={{ color: hasConflict ? 'var(--danger-text)' : 'var(--accent)' }}
+            >
               → {file.transformed_name}
             </p>
           )}
           {!file.transformed_name && (
-            <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full font-medium ${colorClass}`}>
+            <span
+              className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full font-medium"
+              style={typeStyle}
+            >
               {file.extension || file.file_type}
             </span>
           )}
         </div>
-        {preview?.has_conflict && (
-          <p className="text-[11px] text-red-300 truncate mt-0.5">
-            {preview.conflict_reason || 'Conflicting output'}
+        {hasConflict && (
+          <p className="text-[11px] truncate mt-0.5" style={{ color: 'var(--danger-text)' }}>
+            {preview?.conflict_reason || 'Conflicting output'}
           </p>
         )}
         {file.status === 'error' && file.error && (
-          <p className="text-[11px] text-red-300 truncate mt-0.5" title={file.error}>
+          <p
+            className="text-[11px] truncate mt-0.5"
+            style={{ color: 'var(--danger-text)' }}
+            title={file.error}
+          >
             {file.error}
           </p>
         )}
@@ -103,16 +134,16 @@ export function FileCard({ file, preview, onRemove }: FileCardProps) {
       {/* Status */}
       <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
         {file.status === 'processing' && (
-          <Loader2 className="w-4 h-4 text-yellow-400 animate-spin" />
+          <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--warning)' }} />
         )}
         {file.status === 'done' && (
-          <CheckCircle className="w-4 h-4 text-emerald-400" />
+          <CheckCircle className="w-4 h-4" style={{ color: 'var(--success)' }} />
         )}
         {file.status === 'error' && (
-          <AlertCircle className="w-4 h-4 text-red-400" />
+          <AlertCircle className="w-4 h-4" style={{ color: 'var(--danger)' }} />
         )}
-        {file.status === 'pending' && preview?.has_conflict && (
-          <AlertCircle className="w-4 h-4 text-red-400" />
+        {file.status === 'pending' && hasConflict && (
+          <AlertCircle className="w-4 h-4" style={{ color: 'var(--danger)' }} />
         )}
       </div>
 
@@ -120,12 +151,11 @@ export function FileCard({ file, preview, onRemove }: FileCardProps) {
       <button
         onClick={handleRemove}
         aria-label={`Remove ${file.original_name}`}
-        className="flex-shrink-0 w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-200 hover:text-red-400"
-        style={{ color: 'var(--text-muted)' }}
+        className="flex-shrink-0 w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-200 text-[var(--text-muted)] hover:text-[var(--danger)]"
       >
         <X className="w-4 h-4" />
       </button>
-      {preview?.has_conflict && (
+      {hasConflict && preview?.conflict_reason && (
         <span className="sr-only">{preview.conflict_reason}</span>
       )}
     </div>

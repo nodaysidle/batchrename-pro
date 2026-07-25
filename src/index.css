@@ -46,10 +46,29 @@
   --border: rgba(148, 163, 184, 0.15);
   --accent: #C8FF00;
   --accent-rgb: 200, 255, 0;
+  --success: #34D399;
+  --success-bg: rgba(16, 185, 129, 0.12);
+  --warning: #FBBF24;
+  --warning-bg: rgba(245, 158, 11, 0.14);
+  --danger: #F87171;
   --danger-bg: rgba(239, 68, 68, 0.12);
   --danger-border: rgba(239, 68, 68, 0.35);
   --danger-text: #FCA5A5;
   --danger-heading: #FCA5A5;
+  --undo: #FBBF24;
+  --undo-bg: rgba(245, 158, 11, 0.12);
+  --scrollbar-thumb: rgba(148, 163, 184, 0.35);
+  --scrollbar-thumb-hover: rgba(148, 163, 184, 0.55);
+  --overlay: rgba(2, 6, 23, 0.55);
+  --shadow: rgba(2, 6, 23, 0.45);
+  --type-audio: #C084FC;
+  --type-audio-bg: rgba(168, 85, 247, 0.14);
+  --type-image: #34D399;
+  --type-image-bg: rgba(16, 185, 129, 0.14);
+  --type-video: #FB923C;
+  --type-video-bg: rgba(249, 115, 22, 0.14);
+  --type-document: #94A3B8;
+  --type-document-bg: rgba(148, 163, 184, 0.14);
 }
 
 /* Light theme */
@@ -60,10 +79,29 @@ html:not(.dark) {
   --text: #0F172A;
   --text-muted: #64748B;
   --border: rgba(15, 23, 42, 0.1);
+  --success: #059669;
+  --success-bg: rgba(5, 150, 105, 0.1);
+  --warning: #D97706;
+  --warning-bg: rgba(217, 119, 6, 0.1);
+  --danger: #DC2626;
   --danger-bg: rgba(220, 38, 38, 0.08);
   --danger-border: rgba(220, 38, 38, 0.3);
   --danger-text: #7F1D1D;
   --danger-heading: #991B1B;
+  --undo: #B45309;
+  --undo-bg: rgba(180, 83, 9, 0.1);
+  --scrollbar-thumb: rgba(100, 116, 139, 0.4);
+  --scrollbar-thumb-hover: rgba(71, 85, 105, 0.55);
+  --overlay: rgba(15, 23, 42, 0.4);
+  --shadow: rgba(15, 23, 42, 0.18);
+  --type-audio: #7C3AED;
+  --type-audio-bg: rgba(124, 58, 237, 0.1);
+  --type-image: #059669;
+  --type-image-bg: rgba(5, 150, 105, 0.1);
+  --type-video: #EA580C;
+  --type-video-bg: rgba(234, 88, 12, 0.1);
+  --type-document: #64748B;
+  --type-document-bg: rgba(100, 116, 139, 0.12);
 }
 
 html,
@@ -80,11 +118,17 @@ body {
   background: transparent;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.3);
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.5);
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Firefox */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 /* Animations */

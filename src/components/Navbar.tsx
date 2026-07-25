@@ -142,9 +142,14 @@ export function Navbar() {
           id="appearance-menu"
           ref={settingsMenuRef}
           role="dialog"
+          aria-modal="true"
           aria-label="Appearance"
-          className="absolute top-12 right-6 w-64 rounded-xl border shadow-2xl shadow-black/40 p-4 z-50"
-          style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+          className="absolute top-12 right-6 w-64 rounded-xl border p-4 z-50"
+          style={{
+            backgroundColor: 'var(--card)',
+            borderColor: 'var(--border)',
+            boxShadow: '0 25px 50px -12px var(--shadow)',
+          }}
         >
           <h3 className="text-sm font-medium" style={{ color: 'var(--text)' }}>Appearance</h3>
           <p className="mt-1 mb-3 text-[11px] leading-4" style={{ color: 'var(--text-muted)' }}>
@@ -200,15 +205,23 @@ export function Navbar() {
       )}
 
       {showHelp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-6" onMouseDown={closeHelp}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-6"
+          style={{ backgroundColor: 'var(--overlay)' }}
+          onMouseDown={closeHelp}
+        >
           <div
             id="help-dialog"
             ref={helpDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="help-title"
-            className="w-full max-w-lg rounded-xl border p-5 shadow-2xl shadow-black/50"
-            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+            className="w-full max-w-lg rounded-xl border p-5"
+            style={{
+              backgroundColor: 'var(--card)',
+              borderColor: 'var(--border)',
+              boxShadow: '0 25px 50px -12px var(--shadow)',
+            }}
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-4">

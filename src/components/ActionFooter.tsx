@@ -152,15 +152,21 @@ export function ActionFooter() {
       id="history-panel"
       ref={historyPanelRef}
       role="dialog"
+      aria-modal="true"
       aria-label="Job history"
-      className="fixed bottom-16 right-6 w-80 max-h-96 overflow-y-auto rounded-xl border shadow-2xl shadow-black/40 z-50"
-      style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+      className="fixed bottom-16 right-6 w-80 max-h-96 overflow-y-auto rounded-xl border z-50 scrollbar-thin"
+      style={{
+        backgroundColor: 'var(--card)',
+        borderColor: 'var(--border)',
+        boxShadow: '0 25px 50px -12px var(--shadow)',
+      }}
     >
       <div className="flex items-center justify-between p-3 border-b" style={{ borderColor: 'var(--border)' }}>
         <h3 className="text-sm font-medium" style={{ color: 'var(--text)' }}>Job History</h3>
         <button
           onClick={closeHistory}
           aria-label="Close history"
+          className="rounded-lg p-1 transition-colors hover:bg-[var(--border)]"
           style={{ color: 'var(--text-muted)' }}
         >
           <X className="w-4 h-4" />
@@ -179,11 +185,11 @@ export function ActionFooter() {
             >
               <div className="flex-shrink-0">
                 {job.status === 'completed' ? (
-                  <CheckCircle className="w-4 h-4 text-emerald-400" />
+                  <CheckCircle className="w-4 h-4" style={{ color: 'var(--success)' }} />
                 ) : job.status === 'partial' ? (
-                  <CheckCircle className="w-4 h-4 text-yellow-400" />
+                  <CheckCircle className="w-4 h-4" style={{ color: 'var(--warning)' }} />
                 ) : (
-                  <X className="w-4 h-4 text-red-400" />
+                  <X className="w-4 h-4" style={{ color: 'var(--danger)' }} />
                 )}
               </div>
               <div className="flex-1 min-w-0">
@@ -200,8 +206,7 @@ export function ActionFooter() {
                   onClick={() => runUndo(job.id)}
                   disabled={state.isProcessing || undoingJobId === job.id}
                   aria-label={`Undo job from ${new Date(job.timestamp).toLocaleString()}`}
-                  className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] hover:text-amber-400 hover:bg-amber-500/10 transition-all duration-200 disabled:opacity-50"
-                  style={{ color: 'var(--text-muted)' }}
+                  className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-[var(--text-muted)] hover:text-[var(--undo)] hover:bg-[var(--undo-bg)] transition-all duration-200 disabled:opacity-50"
                 >
                   <Undo2 className="w-3 h-3" />
                   Undo
@@ -235,8 +240,7 @@ export function ActionFooter() {
         onClick={handleUndo}
         disabled={undoingJobId === state.lastCompletedJobId}
         aria-label="Undo last completed rename job"
-        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs hover:text-amber-400 hover:bg-amber-500/10 transition-all duration-200 disabled:opacity-50"
-        style={{ color: 'var(--text-muted)' }}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-[var(--text-muted)] hover:text-[var(--undo)] hover:bg-[var(--undo-bg)] transition-all duration-200 disabled:opacity-50"
       >
         <Undo2 className="w-3.5 h-3.5" />
         Undo
@@ -271,7 +275,7 @@ export function ActionFooter() {
         <span className="font-medium" style={{ color: 'var(--text)' }}>{stats.total}</span>
         <span>file{stats.total !== 1 ? 's' : ''}</span>
         {state.isProcessing && (
-          <span className="text-yellow-400 text-xs">
+          <span className="text-xs" style={{ color: 'var(--warning)' }}>
             {stats.done + stats.error}/{stats.total}
           </span>
         )}
@@ -300,8 +304,7 @@ export function ActionFooter() {
           onClick={handleCancel}
           disabled={isCancelling}
           aria-label="Cancel in-progress rename job"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 disabled:opacity-50"
-          style={{ color: 'var(--text-muted)' }}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-[var(--text-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-all duration-200 disabled:opacity-50"
         >
           <Ban className="w-3.5 h-3.5" />
           Cancel
