@@ -1,0 +1,65 @@
+/* Shared motion utilities — respects prefers-reduced-motion */
+
+.transition-default {
+  transition-property: transform, opacity, background-color, border-color, box-shadow;
+  transition-duration: 200ms;
+  transition-timing-function: ease-out;
+  will-change: transform, opacity;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.35);
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.25), 0 0 20px 2px rgba(var(--accent-rgb), 0.12);
+}
+
+@keyframes shake-error {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+.shake-error {
+  animation: shake-error 400ms ease-in-out;
+}
+
+@keyframes stagger-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stagger-in {
+  animation: stagger-fade-in 250ms ease-out both;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+
+.progress-fill {
+  transition: width 300ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transition-default,
+  .hover-lift,
+  .hover-glow,
+  .shake-error,
+  .stagger-in,
+  .progress-fill {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .hover-lift:hover {
+    transform: none;
+  }
+}

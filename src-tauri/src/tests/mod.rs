@@ -56,6 +56,20 @@ fn template_pattern(template: &str, start: u32, zero_pad: u32) -> RenamePattern 
     }
 }
 
+fn numbering_pattern(prefix: Option<&str>, suffix: Option<&str>, start: u32, zero_pad: u32) -> RenamePattern {
+    RenamePattern {
+        mode: RenameMode::Numbering,
+        regex_find: None,
+        regex_replace: None,
+        template: None,
+        start_number: Some(start),
+        zero_pad: Some(zero_pad),
+        prefix: prefix.map(String::from),
+        suffix: suffix.map(String::from),
+        case_transform: CaseTransform::None,
+    }
+}
+
 #[test]
 fn preview_regex_replace() {
     let dir = test_dir("preview-regex");
@@ -86,6 +100,50 @@ fn preview_template_tokens_and_zero_pad_numbering() {
 
     assert!(previews[0].transformed_name.starts_with("photo-007-"));
     assert!(previews[0].transformed_name.ends_with("-jpg.jpg"));
+}
+
+#[test]
+fn preview_numbering_does_not_double_prefix() {
+    let dir = test_dir("preview-numbering-prefix");
+    let source = dir.join("photo.txt");
+    write_file(&source, "one");
+
+    let previews = preview_service::generate_previews(
+        &[file_info(&source)],
+        &numbering_pattern(Some("img"), None, 1, 0),
+    )
+    .unwrap();
+
+    assert_eq!(previews[0].transformed_name, "img1.txt");
+}
+
+#[test]
+fn preview_numbering_empty_prefix_defaults_to_file() {
+    let dir = test_dir("preview-numbering-empty-prefix");
+    let source = dir.join("photo.txt");
+    write_file(&source, "one");
+
+    let previews = preview_service::generate_previews(
+        &[file_info(&source)],
+        &numbering_pattern(Some(""), None, 1, 0),
+    )
+    .unwrap();
+
+    assert_eq!(previews[0].transformed_name, "file1.txt");
+}
+
+#[test]
+fn preview_template_mode_still_applies_outer_prefix_once() {
+    let dir = test_dir("preview-template-prefix");
+    let source = dir.join("photo.jpg");
+    write_file(&source, "one");
+
+    let mut pattern = template_pattern("{original}", 1, 0);
+    pattern.prefix = Some("pre-".into());
+
+    let previews = preview_service::generate_previews(&[file_info(&source)], &pattern).unwrap();
+
+    assert_eq!(previews[0].transformed_name, "pre-photo.jpg");
 }
 
 #[test]
@@ -221,6 +279,7 @@ fn rename_operation_creates_backup_and_undo_removes_output() {
         &conn,
         &app_data,
         None,
+        None,
         vec![file_info(&source)],
         regex_pattern("source", "renamed"),
     )
@@ -242,6 +301,101 @@ fn rename_operation_creates_backup_and_undo_removes_output() {
         })
         .unwrap();
     assert_eq!(status, "rolled_back");
+}
+
+#[test]
+fn revalidate_path_accepts_existing_file_and_rejects_missing() {
+    let dir = test_dir("revalidate-path");
+    let source = dir.join("source.txt");
+    write_file(&source, "content");
+
+    let canonical = file_service::revalidate_path(source.to_str().unwrap()).unwrap();
+    assert_eq!(
+        Path::new(&canonical).canonicalize().unwrap(),
+        source.canonicalize().unwrap()
+    );
+
+    let missing = dir.join("does-not-exist.txt");
+    let err = file_service::revalidate_path(missing.to_str().unwrap()).unwrap_err();
+    assert!(err.starts_with("FILE_NOT_FOUND"));
+}
+
+#[test]
+fn rename_updates_trusted_registry_with_new_path() {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    let dir = test_dir("registry-update");
+    let source = dir.join("source.txt");
+    let app_data = dir.join("app-data");
+    write_file(&source, "content");
+
+    let conn = Connection::open_in_memory().unwrap();
+    db::run_migrations_for_test(&conn).unwrap();
+
+    let file = file_info(&source);
+    let file_id = file.id.clone();
+    let mut initial_registry = HashMap::new();
+    initial_registry.insert(file_id.clone(), file.clone());
+    let registry: Mutex<HashMap<String, FileInfo>> = Mutex::new(initial_registry);
+
+    processing_pipeline::execute_batch_rename_with_paths(
+        &conn,
+        &app_data,
+        None,
+        Some(&registry),
+        vec![file],
+        regex_pattern("source", "renamed"),
+    )
+    .unwrap();
+
+    let renamed = dir.join("renamed.txt");
+    let updated = registry.lock().unwrap().get(&file_id).cloned().unwrap();
+    assert_eq!(
+        Path::new(&updated.original_path).canonicalize().unwrap(),
+        renamed.canonicalize().unwrap()
+    );
+    assert_eq!(updated.original_name, "renamed.txt");
+}
+
+#[test]
+fn validate_setting_rejects_unknown_key() {
+    let err = db::validate_setting("not_a_real_setting", "x").unwrap_err();
+    assert!(err.starts_with("INVALID_SETTING"));
+}
+
+#[test]
+fn validate_setting_clamps_file_hard_cap_and_parallel_jobs() {
+    assert_eq!(db::validate_setting("file_hard_cap", "999999").unwrap(), "10000");
+    assert_eq!(db::validate_setting("file_hard_cap", "0").unwrap(), "1");
+    assert_eq!(db::validate_setting("max_parallel_jobs", "999").unwrap(), "16");
+    assert_eq!(db::validate_setting("max_parallel_jobs", "0").unwrap(), "1");
+}
+
+#[test]
+fn validate_and_build_file_info_rejects_when_session_count_already_at_cap() {
+    let dir = test_dir("hard-cap-session");
+    let path = dir.join("one.txt");
+    write_file(&path, "content");
+
+    // Simulates `add_files` seeding `current_count` from a registry that
+    // already holds 2 files when the hard cap is 2: the session total must
+    // be enforced, not just the count within a single `add_files` call.
+    let err =
+        file_service::validate_and_build_file_info(path.to_str().unwrap(), 2, 2).unwrap_err();
+    assert!(err.starts_with("TOO_MANY_FILES"));
+
+    // Below the cap it still succeeds.
+    assert!(file_service::validate_and_build_file_info(path.to_str().unwrap(), 2, 1).is_ok());
+}
+
+#[test]
+fn validate_setting_rejects_invalid_enum_and_bool_values() {
+    assert!(db::validate_setting("theme", "purple").is_err());
+    assert!(db::validate_setting("accent_color", "gold").is_err());
+    assert!(db::validate_setting("auto_backup", "yes").is_err());
+    assert_eq!(db::validate_setting("theme", "light").unwrap(), "light");
+    assert_eq!(db::validate_setting("auto_backup", "true").unwrap(), "true");
 }
 
 #[test]

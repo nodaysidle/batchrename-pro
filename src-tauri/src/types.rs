@@ -127,6 +127,12 @@ pub struct JobProgressEvent {
     pub error_message: Option<String>,
     pub files_completed: u32,
     pub files_total: u32,
+    pub transformed_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobStartedEvent {
+    pub job_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

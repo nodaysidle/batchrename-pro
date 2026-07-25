@@ -24,7 +24,6 @@
     "core:path:allow-resolve",
     "dialog:default",
     "dialog:allow-open",
-    "dialog:allow-save",
-    "shell:default"
+    "dialog:allow-save"
   ]
 }

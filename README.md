@@ -77,7 +77,7 @@ Release binary: `src-tauri/target/release/bundle/macos/BatchRename Pro.app`
 ┌──────────────────┴──────────────────────────────┐
 │  Rust Backend                                   │
 │  Preview Service │ File Service │ Processing Pipeline (Rayon) │
-│  SQLite (WAL)    │ Convert Service │ Metadata Service │
+│  SQLite (WAL)    │ Convert/Metadata Services (schema-ready, not shipped) │
 └─────────────────────────────────────────────────┘
 ```
 

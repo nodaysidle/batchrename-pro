@@ -47,12 +47,11 @@ export function FileCard({ file, preview, onRemove }: FileCardProps) {
   return (
     <div
       className={`
-        group flex items-center gap-3 p-3 rounded-xl
-        bg-slate-800/40 border border-slate-700/30
-        hover:bg-slate-800/60 hover:border-slate-600/40 hover:-translate-y-[1px]
-        transition-all duration-200 ease-out
+        group transition-default hover-lift flex items-center gap-3 p-3 rounded-xl border
+        ${file.status === 'error' ? 'shake-error' : ''}
         ${statusClass}
       `}
+      style={{ backgroundColor: 'color-mix(in srgb, var(--card) 40%, transparent)', borderColor: 'var(--border)' }}
     >
       {/* Thumbnail / Icon */}
       <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${colorClass}`}>
@@ -69,7 +68,7 @@ export function FileCard({ file, preview, onRemove }: FileCardProps) {
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-slate-200 truncate font-medium">
+        <p className="text-sm truncate font-medium" style={{ color: 'var(--text)' }}>
           {file.original_name}
         </p>
         <div className="flex items-center gap-2 mt-0.5">
@@ -89,10 +88,15 @@ export function FileCard({ file, preview, onRemove }: FileCardProps) {
             {preview.conflict_reason || 'Conflicting output'}
           </p>
         )}
+        {file.status === 'error' && file.error && (
+          <p className="text-[11px] text-red-300 truncate mt-0.5" title={file.error}>
+            {file.error}
+          </p>
+        )}
       </div>
 
       {/* Size */}
-      <span className="text-xs text-slate-500 flex-shrink-0">
+      <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
         {formatSize(file.size_bytes)}
       </span>
 
@@ -116,7 +120,8 @@ export function FileCard({ file, preview, onRemove }: FileCardProps) {
       <button
         onClick={handleRemove}
         aria-label={`Remove ${file.original_name}`}
-        className="flex-shrink-0 w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-slate-500 hover:text-red-400"
+        className="flex-shrink-0 w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-200 hover:text-red-400"
+        style={{ color: 'var(--text-muted)' }}
       >
         <X className="w-4 h-4" />
       </button>

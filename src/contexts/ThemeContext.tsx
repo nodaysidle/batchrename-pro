@@ -17,6 +17,11 @@ const ACCENT_MAP: Record<AccentColor, string> = {
   graphite: '#6B6B80',
 };
 
+const ACCENT_RGB_MAP: Record<AccentColor, string> = {
+  volt: '200, 255, 0',
+  graphite: '107, 107, 128',
+};
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { dispatch } = useAppState();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -39,6 +44,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     document.documentElement.style.setProperty('--accent', ACCENT_MAP[accentColor] ?? '#C8FF00');
+    document.documentElement.style.setProperty(
+      '--accent-rgb',
+      ACCENT_RGB_MAP[accentColor] ?? '200, 255, 0'
+    );
   }, [theme, accentColor]);
 
   const toggleTheme = useCallback(() => {

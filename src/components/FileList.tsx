@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, type CSSProperties } from 'react';
 import { useAppState, useFileStats } from '@/state/AppStateContext';
 import { FixedSizeList as List } from 'react-window';
 import { FileCard } from './FileCard';
@@ -26,12 +26,12 @@ export function FileList() {
       {/* Header */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-medium text-slate-300">
+          <h3 className="text-sm font-medium" style={{ color: 'var(--text)' }}>
             {stats.total} file{stats.total !== 1 ? 's' : ''}
           </h3>
-          <div className="flex gap-2 text-xs">
+          <div className="flex gap-2 text-xs" aria-live="polite">
             {stats.pending > 0 && (
-              <span className="text-slate-500">{stats.pending} pending</span>
+              <span style={{ color: 'var(--text-muted)' }}>{stats.pending} pending</span>
             )}
             {stats.processing > 0 && (
               <span className="text-yellow-400 animate-pulse">
@@ -49,7 +49,8 @@ export function FileList() {
         <button
           onClick={handleClearAll}
           aria-label="Clear all files"
-          className="flex items-center gap-1 text-xs text-slate-500 hover:text-red-400 transition-colors duration-200"
+          className="flex items-center gap-1 text-xs transition-colors duration-200 hover:text-red-400"
+          style={{ color: 'var(--text-muted)' }}
         >
           <Trash2 className="w-3 h-3" />
           Clear all
@@ -80,8 +81,8 @@ export function FileList() {
           {state.files.map((file, i) => (
             <div
               key={file.id}
-              style={{ animationDelay: `${i * 30}ms` }}
-              className="animate-fade-in"
+              style={{ '--i': Math.min(i, 20) } as CSSProperties}
+              className="stagger-in"
             >
               <FileCard
                 file={file}

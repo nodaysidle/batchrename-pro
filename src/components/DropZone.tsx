@@ -3,12 +3,13 @@ import { addFiles as addFilesCmd, parseError } from '@/lib/commands';
 import { useAppState } from '@/state/AppStateContext';
 import { open } from '@tauri-apps/plugin-dialog';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
-import { FolderOpen, FileUp } from 'lucide-react';
+import { FolderOpen, FileUp, Plus } from 'lucide-react';
 
 export function DropZone() {
-  const { dispatch } = useAppState();
+  const { state, dispatch } = useAppState();
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const hasFiles = state.files.length > 0;
 
   const handleFiles = useCallback(
     async (paths: string[]) => {
@@ -83,6 +84,44 @@ export function DropZone() {
     }
   }, [dispatch, handleFiles]);
 
+  if (hasFiles) {
+    return (
+      <div
+        onClick={handleClick}
+        role="button"
+        tabIndex={0}
+        aria-label="Add more files"
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handleClick();
+          }
+        }}
+        className={`
+          transition-default hover-glow flex items-center justify-between gap-3
+          rounded-xl border border-dashed p-3
+          cursor-pointer backdrop-blur-md
+          ${isDragging ? 'border-[var(--accent)] pulse-glow' : ''}
+          ${isLoading ? 'opacity-60 pointer-events-none' : ''}
+        `}
+        style={{
+          borderColor: isDragging ? 'var(--accent)' : 'var(--border)',
+          backgroundColor: isDragging
+            ? 'color-mix(in srgb, var(--accent) 10%, transparent)'
+            : 'color-mix(in srgb, var(--card) 30%, transparent)',
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <Plus className="w-4 h-4" style={{ color: isDragging ? 'var(--accent)' : 'var(--text-muted)' }} />
+          <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+            {isDragging ? 'Release to add files' : isLoading ? 'Adding files...' : 'Add more files'}
+          </p>
+        </div>
+        <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Drag & drop supported</p>
+      </div>
+    );
+  }
+
   return (
     <div
       onClick={handleClick}
@@ -96,40 +135,43 @@ export function DropZone() {
         }
       }}
       className={`
-        relative flex flex-col items-center justify-center gap-4
+        transition-default relative flex flex-col items-center justify-center gap-4
         rounded-2xl border-2 border-dashed p-12
-        cursor-pointer transition-all duration-200 ease-out
-        backdrop-blur-md
-        ${
-          isDragging
-            ? 'border-[var(--accent)] bg-[var(--accent)]/10 scale-[1.02]'
-            : 'border-slate-600/50 bg-white/[0.03] hover:border-slate-500/70 hover:bg-white/[0.05]'
-        }
+        cursor-pointer backdrop-blur-md
+        ${isDragging ? 'scale-[1.02] pulse-glow' : ''}
         ${isLoading ? 'opacity-60 pointer-events-none' : ''}
       `}
+      style={{
+        borderColor: isDragging ? 'var(--accent)' : 'var(--border)',
+        backgroundColor: isDragging
+          ? 'color-mix(in srgb, var(--accent) 10%, transparent)'
+          : 'color-mix(in srgb, var(--card) 15%, transparent)',
+      }}
     >
       <div
-        className={`
-          p-4 rounded-full transition-all duration-200
-          ${isDragging ? 'bg-[var(--accent)]/20 scale-110' : 'bg-slate-800/50'}
-        `}
+        className={`transition-default p-4 rounded-full ${isDragging ? 'scale-110' : ''}`}
+        style={{
+          backgroundColor: isDragging
+            ? 'color-mix(in srgb, var(--accent) 20%, transparent)'
+            : 'color-mix(in srgb, var(--card) 60%, transparent)',
+        }}
       >
         {isDragging ? (
           <FileUp className="w-8 h-8 text-[var(--accent)]" />
         ) : (
-          <FolderOpen className="w-8 h-8 text-slate-400" />
+          <FolderOpen className="w-8 h-8" style={{ color: 'var(--text-muted)' }} />
         )}
       </div>
 
       <div className="text-center">
-        <p className="text-slate-300 text-sm font-medium">
+        <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
           {isDragging
             ? 'Release to add files'
             : isLoading
             ? 'Adding files...'
             : 'Drag files here or click to browse'}
         </p>
-        <p className="text-slate-500 text-xs mt-1">
+        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
           Audio, Image, Video — up to 5,000 files
         </p>
       </div>

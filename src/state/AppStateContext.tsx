@@ -59,7 +59,15 @@ type AppAction =
   | { type: 'CLEAR_FILES' }
   | { type: 'SET_PREVIEWS'; previews: PreviewPair[] }
   | { type: 'START_JOB'; jobId: string }
-  | { type: 'UPDATE_FILE_STATUS'; fileId: string; status: FileInfo['status']; transformedName?: string; error?: string }
+  | {
+      type: 'UPDATE_FILE_STATUS';
+      fileId: string;
+      status: FileInfo['status'];
+      transformedName?: string;
+      error?: string;
+      originalPath?: string;
+      originalName?: string;
+    }
   | { type: 'COMPLETE_JOB'; jobId: string }
   | { type: 'SET_ACTIVE_TAB'; tab: TabType }
   | { type: 'SET_HISTORY'; history: JobSummary[] }
@@ -104,16 +112,18 @@ function reducer(state: AppState, action: AppAction): AppState {
     case 'UPDATE_FILE_STATUS':
       return {
         ...state,
-        files: state.files.map((f) =>
-          f.id === action.fileId
-            ? {
-                ...f,
-                status: action.status,
-                transformed_name: action.transformedName ?? f.transformed_name,
-                error: action.error ?? null,
-              }
-            : f
-        ),
+        files: state.files.map((f) => {
+          if (f.id !== action.fileId) return f;
+          const pathUpdated = action.status === 'done' && (action.originalPath || action.originalName);
+          return {
+            ...f,
+            status: action.status,
+            original_path: action.originalPath ?? f.original_path,
+            original_name: action.originalName ?? f.original_name,
+            transformed_name: pathUpdated ? null : action.transformedName ?? f.transformed_name,
+            error: action.error ?? null,
+          };
+        }),
       };
 
     case 'COMPLETE_JOB':
@@ -122,6 +132,9 @@ function reducer(state: AppState, action: AppAction): AppState {
         activeJobId: null,
         isProcessing: false,
         lastCompletedJobId: action.jobId,
+        // Force a fresh preview before the next Apply — file paths just
+        // changed, so any stale preview would target the wrong source path.
+        previews: [],
       };
 
     case 'SET_ACTIVE_TAB':

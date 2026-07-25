@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAppState } from '@/state/AppStateContext';
 import { parseError, previewRename } from '@/lib/commands';
 import { Hash, Regex, Type } from 'lucide-react';
@@ -30,6 +30,7 @@ export function RenameTab() {
     [state.files]
   );
   const patternSignature = useMemo(() => JSON.stringify(p), [p]);
+  const latestRequestId = useRef(0);
 
   useEffect(() => {
     const hasPattern =
@@ -38,23 +39,30 @@ export function RenameTab() {
       p.mode === 'numbering';
 
     if (state.files.length === 0 || !hasPattern) {
+      latestRequestId.current += 1;
       dispatch({ type: 'SET_PREVIEWS', previews: [] });
       return;
     }
 
     const timer = window.setTimeout(() => {
+      const requestId = ++latestRequestId.current;
       const fileIds = state.files.map((file) => file.id);
       previewRename(fileIds, state.files, p)
         .then((result) => {
+          if (requestId !== latestRequestId.current) return;
           dispatch({ type: 'SET_PREVIEWS', previews: result.previews });
         })
         .catch((err) => {
+          if (requestId !== latestRequestId.current) return;
           const parsed = parseError(err);
           dispatch({ type: 'SET_PREVIEW_ERROR', error: parsed.message });
         });
     }, 150);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      latestRequestId.current += 1;
+    };
   }, [dispatch, fileSignature, patternSignature]);
 
   return (

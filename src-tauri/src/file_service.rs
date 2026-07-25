@@ -114,6 +114,16 @@ fn base64_encode(data: &[u8]) -> String {
     result
 }
 
+/// Re-canonicalize a previously trusted path, confirming it still exists.
+/// Used by preview/apply commands to re-validate server-held `FileInfo`
+/// entries instead of trusting client-supplied path strings.
+pub fn revalidate_path(path_str: &str) -> Result<String, String> {
+    let canonical = Path::new(path_str)
+        .canonicalize()
+        .map_err(|_| format!("FILE_NOT_FOUND: {}", path_str))?;
+    Ok(canonical.to_string_lossy().to_string())
+}
+
 pub fn create_backup(original_path: &str, backup_dir: &Path) -> Result<String, String> {
     std::fs::create_dir_all(backup_dir).map_err(|e| format!("BACKUP_FAILED: {}", e))?;
 

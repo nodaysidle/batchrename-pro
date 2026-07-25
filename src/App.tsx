@@ -17,18 +17,20 @@ function ErrorBanner() {
   return (
     <div
       role="alert"
-      className="mx-6 mt-3 flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100"
+      className="mx-6 mt-3 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm"
+      style={{ borderColor: 'var(--danger-border)', backgroundColor: 'var(--danger-bg)', color: 'var(--danger-text)' }}
     >
-      <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-300" />
+      <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: 'var(--danger-heading)' }} />
       <div className="min-w-0 flex-1">
-        <p className="font-medium text-red-200">{state.appError.code}</p>
-        <p className="break-words text-red-100/90">{state.appError.message}</p>
+        <p className="font-medium" style={{ color: 'var(--danger-heading)' }}>{state.appError.code}</p>
+        <p className="break-words">{state.appError.message}</p>
       </div>
       <button
         type="button"
         aria-label="Dismiss error"
         onClick={() => dispatch({ type: 'CLEAR_ERROR' })}
-        className="rounded p-1 text-red-200/70 transition-colors hover:bg-red-500/10 hover:text-red-100"
+        className="rounded p-1 opacity-70 transition-colors hover:opacity-100"
+        style={{ color: 'var(--danger-heading)' }}
       >
         <X className="h-4 w-4" />
       </button>
@@ -40,7 +42,7 @@ function AppShell() {
   useTauriEvents();
 
   return (
-    <div className="flex flex-col h-screen bg-slate-950 text-slate-100 overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden" style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
       <Navbar />
       <ErrorBanner />
 

@@ -3,6 +3,7 @@ use crate::file_service;
 use crate::preview_service;
 use crate::types::*;
 use rayon::prelude::*;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -27,6 +28,7 @@ struct RenameOutcome {
 pub fn execute_batch_rename(
     app: &AppHandle,
     conn: &rusqlite::Connection,
+    registry: &Mutex<HashMap<String, FileInfo>>,
     files: Vec<FileInfo>,
     pattern: RenamePattern,
 ) -> Result<String, String> {
@@ -34,13 +36,14 @@ pub fn execute_batch_rename(
         .path()
         .app_data_dir()
         .map_err(|e| format!("APP_DATA_ERROR: {}", e))?;
-    execute_batch_rename_with_paths(conn, &app_data, Some(app), files, pattern)
+    execute_batch_rename_with_paths(conn, &app_data, Some(app), Some(registry), files, pattern)
 }
 
 pub fn execute_batch_rename_with_paths(
     conn: &rusqlite::Connection,
     app_data: &Path,
     app: Option<&AppHandle>,
+    registry: Option<&Mutex<HashMap<String, FileInfo>>>,
     files: Vec<FileInfo>,
     pattern: RenamePattern,
 ) -> Result<String, String> {
@@ -106,6 +109,15 @@ pub fn execute_batch_rename_with_paths(
         flags.insert(job_id.clone(), cancel_flag.clone());
     }
 
+    if let Some(app) = app {
+        let _ = app.emit(
+            "job_started",
+            JobStartedEvent {
+                job_id: job_id.clone(),
+            },
+        );
+    }
+
     let files_total = files.len() as u32;
     let processed_count = Arc::new(Mutex::new(0u32));
     let app_handle = app.cloned();
@@ -135,6 +147,7 @@ pub fn execute_batch_rename_with_paths(
                 None,
                 *processed_count.lock().unwrap(),
                 files_total,
+                None,
             );
 
             let backup_path = match file_service::create_backup(&file.original_path, &backup_dir) {
@@ -229,6 +242,29 @@ pub fn execute_batch_rename_with_paths(
         }
     }
 
+    // Keep the trusted registry in sync so a second preview/apply in the same
+    // session resolves the file's new location rather than the stale one.
+    if let Some(registry) = registry {
+        let mut reg = registry.lock().unwrap();
+        for (file, outcome) in files.iter().zip(outcomes.iter()) {
+            if outcome.status != "success" {
+                continue;
+            }
+            let Some(new_path) = &outcome.transformed_path else {
+                continue;
+            };
+            if let Some(entry) = reg.get_mut(&file.id) {
+                let new_name = Path::new(new_path)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or(&entry.original_name)
+                    .to_string();
+                entry.original_path = new_path.clone();
+                entry.original_name = new_name;
+            }
+        }
+    }
+
     let job_status = if failed == 0 && db_recording_errors.is_empty() {
         "completed"
     } else if completed > 0 || !db_recording_errors.is_empty() {
@@ -292,6 +328,11 @@ fn finish_outcome(
         error.as_deref(),
         *processed,
         files_total,
+        if status == "success" {
+            transformed_path.as_deref()
+        } else {
+            None
+        },
     );
     RenameOutcome {
         job_file_id: job_file_id.to_string(),
@@ -312,6 +353,7 @@ fn emit_progress(
     error_message: Option<&str>,
     files_completed: u32,
     files_total: u32,
+    transformed_path: Option<&str>,
 ) {
     if let Some(app) = app {
         let _ = app.emit(
@@ -325,6 +367,7 @@ fn emit_progress(
                 error_message: error_message.map(ToOwned::to_owned),
                 files_completed,
                 files_total,
+                transformed_path: transformed_path.map(ToOwned::to_owned),
             },
         );
     }

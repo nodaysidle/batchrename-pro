@@ -89,12 +89,15 @@ fn apply_pattern(file: &FileInfo, pattern: &RenamePattern, index: usize) -> Resu
     // Apply case transform
     result = apply_case_transform(&result, &pattern.case_transform);
 
-    // Apply prefix/suffix
-    if let Some(prefix) = &pattern.prefix {
-        result = format!("{}{}", prefix, result);
-    }
-    if let Some(suffix) = &pattern.suffix {
-        result = format!("{}{}", result, suffix);
+    // Apply prefix/suffix. Numbering mode already embeds prefix/suffix in
+    // apply_numbering, so applying them again here would double them up.
+    if !matches!(pattern.mode, RenameMode::Numbering) {
+        if let Some(prefix) = &pattern.prefix {
+            result = format!("{}{}", prefix, result);
+        }
+        if let Some(suffix) = &pattern.suffix {
+            result = format!("{}{}", result, suffix);
+        }
     }
 
     // Validate the stem before re-adding extensions. A pattern that produces
@@ -178,7 +181,11 @@ fn apply_numbering(pattern: &RenamePattern, index: usize) -> Result<String, Stri
     let num = start + index;
     let pad = pattern.zero_pad.unwrap_or(0) as usize;
 
-    let prefix = pattern.prefix.as_deref().unwrap_or("file");
+    let prefix = pattern
+        .prefix
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or("file");
     let suffix = pattern.suffix.as_deref().unwrap_or("");
 
     if pad > 0 {
