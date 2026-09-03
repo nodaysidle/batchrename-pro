@@ -1,11 +1,7 @@
 import { useEffect } from 'react';
 import { useAppState } from '@/state/AppStateContext';
 import { onJobProgress, onJobComplete, onJobStarted } from '@/lib/events';
-
-function basename(path: string): string {
-  const parts = path.split(/[/\\]/);
-  return parts[parts.length - 1] ?? path;
-}
+import { mapJobProgressToFileUpdate } from '@/lib/jobProgressMapping';
 
 export function useTauriEvents() {
   const { dispatch } = useAppState();
@@ -20,15 +16,14 @@ export function useTauriEvents() {
     }).then((fn) => (unlistenStarted = fn));
 
     onJobProgress((event) => {
-      const status = event.status === 'completed' ? 'done' : event.status === 'failed' ? 'error' : 'processing';
+      const update = mapJobProgressToFileUpdate(event);
       dispatch({
         type: 'UPDATE_FILE_STATUS',
-        fileId: event.file_id,
-        status,
-        error: event.error_message ?? undefined,
-        originalPath: status === 'done' ? event.transformed_path ?? undefined : undefined,
-        originalName:
-          status === 'done' && event.transformed_path ? basename(event.transformed_path) : undefined,
+        fileId: update.fileId,
+        status: update.status,
+        error: update.error,
+        originalPath: update.originalPath,
+        originalName: update.originalName,
       });
     }).then((fn) => (unlistenProgress = fn));
 
