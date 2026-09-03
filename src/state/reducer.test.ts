@@ -51,4 +51,66 @@ describe('job processing state machine', () => {
     assert.equal(nextStart.activeJobId, 'job-2');
     assert.equal(nextStart.lastCompletedJobId, null);
   });
+
+  it('updates displayed path on error when trusted on-disk path is provided', () => {
+    const withFile: AppState = {
+      ...initialState,
+      files: [
+        {
+          id: 'file-1',
+          original_path: '/tmp/old.txt',
+          original_name: 'old.txt',
+          extension: 'txt',
+          file_type: 'document',
+          size_bytes: 10,
+          thumbnail_data_url: null,
+          status: 'processing',
+          transformed_name: 'new.txt',
+          error: null,
+        },
+      ],
+    };
+    const state = appReducer(withFile, {
+      type: 'UPDATE_FILE_STATUS',
+      fileId: 'file-1',
+      status: 'error',
+      error: 'CANCELLED: Job was cancelled',
+      originalPath: '/tmp/.brp-tmp-hop/old.txt',
+      originalName: 'old.txt',
+    });
+    assert.equal(state.files[0]?.original_path, '/tmp/.brp-tmp-hop/old.txt');
+    assert.equal(state.files[0]?.original_name, 'old.txt');
+    assert.equal(state.files[0]?.transformed_name, null);
+    assert.equal(state.files[0]?.status, 'error');
+    assert.equal(state.files[0]?.error, 'CANCELLED: Job was cancelled');
+  });
+
+  it('keeps prior path on error when no trusted path is provided', () => {
+    const withFile: AppState = {
+      ...initialState,
+      files: [
+        {
+          id: 'file-1',
+          original_path: '/tmp/old.txt',
+          original_name: 'old.txt',
+          extension: 'txt',
+          file_type: 'document',
+          size_bytes: 10,
+          thumbnail_data_url: null,
+          status: 'processing',
+          transformed_name: 'new.txt',
+          error: null,
+        },
+      ],
+    };
+    const state = appReducer(withFile, {
+      type: 'UPDATE_FILE_STATUS',
+      fileId: 'file-1',
+      status: 'error',
+      error: 'BACKUP_FAILED: disk full',
+    });
+    assert.equal(state.files[0]?.original_path, '/tmp/old.txt');
+    assert.equal(state.files[0]?.original_name, 'old.txt');
+    assert.equal(state.files[0]?.transformed_name, 'new.txt');
+  });
 });

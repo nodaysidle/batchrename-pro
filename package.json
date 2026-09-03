@@ -18,7 +18,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
-    "test:unit": "node --experimental-strip-types --test src/state/reducer.test.ts"
+    "test:unit": "node --experimental-strip-types --test src/state/reducer.test.ts src/lib/jobProgressMapping.test.ts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

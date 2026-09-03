@@ -118,7 +118,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...state,
         files: state.files.map((f) => {
           if (f.id !== action.fileId) return f;
-          const pathUpdated = action.status === 'done' && (action.originalPath || action.originalName);
+          const pathUpdated =
+            (action.status === 'done' || action.status === 'error') &&
+            (action.originalPath != null || action.originalName != null);
           return {
             ...f,
             status: action.status,
