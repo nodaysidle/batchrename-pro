@@ -68,7 +68,7 @@ pub fn execute_batch_rename_with_paths(
 ) -> Result<String, String> {
     let prepared = prepare_batch_rename(conn, app_data, app, files, pattern)?;
     let job_id = prepared.job_id.clone();
-    run_prepared_rename(DbAccess::Direct(conn), app, registry, prepared)?;
+    run_prepared_rename(DbAccess::Direct(conn), app, registry, prepared, None)?;
     Ok(job_id)
 }
 
@@ -181,7 +181,7 @@ pub fn run_prepared_rename_locked(
     registry: &Mutex<HashMap<String, FileInfo>>,
     prepared: PreparedRename,
 ) -> Result<(), String> {
-    run_prepared_rename(DbAccess::Locked(db), Some(app), Some(registry), prepared)
+    run_prepared_rename(DbAccess::Locked(db), Some(app), Some(registry), prepared, None)
 }
 
 pub fn run_prepared_rename_direct(
@@ -189,7 +189,23 @@ pub fn run_prepared_rename_direct(
     registry: Option<&Mutex<HashMap<String, FileInfo>>>,
     prepared: PreparedRename,
 ) -> Result<(), String> {
-    run_prepared_rename(DbAccess::Direct(conn), None, registry, prepared)
+    run_prepared_rename(DbAccess::Direct(conn), None, registry, prepared, None)
+}
+
+#[cfg(test)]
+pub fn run_prepared_rename_direct_with_after_hop(
+    conn: &rusqlite::Connection,
+    registry: Option<&Mutex<HashMap<String, FileInfo>>>,
+    prepared: PreparedRename,
+    mut after_hop: impl FnMut(&RenameStep),
+) -> Result<(), String> {
+    run_prepared_rename(
+        DbAccess::Direct(conn),
+        None,
+        registry,
+        prepared,
+        Some(&mut after_hop),
+    )
 }
 
 fn run_prepared_rename(
@@ -197,6 +213,7 @@ fn run_prepared_rename(
     app: Option<&AppHandle>,
     registry: Option<&Mutex<HashMap<String, FileInfo>>>,
     prepared: PreparedRename,
+    mut after_hop: Option<&mut dyn FnMut(&RenameStep)>,
 ) -> Result<(), String> {
     let PreparedRename {
         job_id,
@@ -216,6 +233,7 @@ fn run_prepared_rename(
 
     let mut backups: HashMap<String, String> = HashMap::new();
     let mut terminal: HashSet<String> = HashSet::new();
+    let mut current_paths: HashMap<String, String> = HashMap::new();
     let mut completed = 0u32;
     let mut failed = 0u32;
     let mut processed = 0u32;
@@ -425,6 +443,11 @@ fn run_prepared_rename(
             continue;
         }
 
+        current_paths.insert(file.id.clone(), new_path_string.clone());
+        if let Some(hook) = after_hop.as_mut() {
+            hook(step);
+        }
+
         if is_last {
             processed += 1;
             completed += 1;
@@ -453,24 +476,13 @@ fn run_prepared_rename(
                 )
                 .map_err(|e| format!("DB_ERROR: {}", e))
             })?;
-
-            if let Some(registry) = registry {
-                let mut reg = registry.lock().unwrap();
-                if let Some(entry) = reg.get_mut(&file.id) {
-                    let new_name = Path::new(&new_path_string)
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or(&entry.original_name)
-                        .to_string();
-                    entry.original_path = new_path_string;
-                    entry.original_name = new_name;
-                }
-            }
+            update_registry_path(registry, &file.id, &new_path_string);
         }
     }
 
     // Remaining files were not started, or were mid-plan when cancel landed.
-    // Cancel does not undo hops that already ran.
+    // Cancel does not undo hops that already ran. Registry must follow disk:
+    // a completed temp hop leaves the file at .brp-tmp-* until a later hop.
     let cancelled = cancel_flag.load(Ordering::Relaxed);
     for (idx, file) in files.iter().enumerate() {
         if terminal.contains(&file.id) {
@@ -483,6 +495,10 @@ fn run_prepared_rename(
         } else {
             "CANCELLED: Remaining rename hops were not applied".to_string()
         };
+        let current_path = current_paths.get(&file.id).cloned();
+        if let Some(path) = current_path.as_deref() {
+            update_registry_path(registry, &file.id, path);
+        }
         emit_progress(
             app,
             &job_id,
@@ -493,7 +509,7 @@ fn run_prepared_rename(
             Some(&error),
             processed,
             files_total,
-            None,
+            current_path.as_deref(),
         );
         let backup = backups.get(&file.id).cloned();
         let status = if cancelled { "skipped" } else { "failed" };
@@ -502,7 +518,7 @@ fn run_prepared_rename(
                 conn,
                 &job_file_ids[idx],
                 status,
-                None,
+                current_path.as_deref(),
                 backup.as_deref(),
                 Some(&error),
             )
@@ -544,6 +560,26 @@ fn run_prepared_rename(
     );
 
     Ok(())
+}
+
+fn update_registry_path(
+    registry: Option<&Mutex<HashMap<String, FileInfo>>>,
+    file_id: &str,
+    new_path: &str,
+) {
+    let Some(registry) = registry else {
+        return;
+    };
+    let mut reg = registry.lock().unwrap();
+    if let Some(entry) = reg.get_mut(file_id) {
+        let new_name = Path::new(new_path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(&entry.original_name)
+            .to_string();
+        entry.original_path = new_path.to_string();
+        entry.original_name = new_name;
+    }
 }
 
 fn emit_progress(

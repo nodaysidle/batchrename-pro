@@ -1,190 +1,7 @@
 import { createContext, useContext, useReducer, type ReactNode } from 'react';
-import type { AppError, FileInfo, PreviewPair, JobSummary, Settings, TabType } from '@/types';
+import { appReducer, initialState, type AppAction, type AppState } from './reducer';
 
-// --- State ---
-
-export interface AppState {
-  files: FileInfo[];
-  previews: PreviewPair[];
-  activeJobId: string | null;
-  isProcessing: boolean;
-  activeTab: TabType;
-  history: JobSummary[];
-  settings: Settings | null;
-  appError: AppError | null;
-  previewError: string | null;
-  lastCompletedJobId: string | null;
-  renamePattern: {
-    mode: 'regex' | 'template' | 'numbering';
-    regex_find: string;
-    regex_replace: string;
-    template: string;
-    start_number: number;
-    zero_pad: number;
-    prefix: string;
-    suffix: string;
-    case_transform: 'none' | 'upper' | 'lower' | 'title';
-  };
-}
-
-const initialState: AppState = {
-  files: [],
-  previews: [],
-  activeJobId: null,
-  isProcessing: false,
-  activeTab: 'rename',
-  history: [],
-  settings: null,
-  appError: null,
-  previewError: null,
-  lastCompletedJobId: null,
-  renamePattern: {
-    mode: 'regex',
-    regex_find: '',
-    regex_replace: '',
-    template: '{original}_{number}',
-    start_number: 1,
-    zero_pad: 3,
-    prefix: '',
-    suffix: '',
-    case_transform: 'none',
-  },
-};
-
-// --- Actions ---
-
-type AppAction =
-  | { type: 'ADD_FILES'; files: FileInfo[] }
-  | { type: 'REMOVE_FILE'; id: string }
-  | { type: 'CLEAR_FILES' }
-  | { type: 'SET_PREVIEWS'; previews: PreviewPair[] }
-  | { type: 'START_JOB'; jobId: string }
-  | {
-      type: 'UPDATE_FILE_STATUS';
-      fileId: string;
-      status: FileInfo['status'];
-      transformedName?: string;
-      error?: string;
-      originalPath?: string;
-      originalName?: string;
-    }
-  | { type: 'COMPLETE_JOB'; jobId: string }
-  | { type: 'SET_ACTIVE_TAB'; tab: TabType }
-  | { type: 'SET_HISTORY'; history: JobSummary[] }
-  | { type: 'SET_SETTINGS'; settings: Settings }
-  | { type: 'SET_RENAME_PATTERN'; pattern: Partial<AppState['renamePattern']> }
-  | { type: 'SET_PREVIEW_ERROR'; error: string | null }
-  | { type: 'SET_ERROR'; error: AppError }
-  | { type: 'CLEAR_ERROR' }
-  | { type: 'SET_PROCESSING'; isProcessing: boolean };
-
-function reducer(state: AppState, action: AppAction): AppState {
-  switch (action.type) {
-    case 'ADD_FILES':
-      return { ...state, files: [...state.files, ...action.files], appError: null };
-
-    case 'REMOVE_FILE':
-      return {
-        ...state,
-        files: state.files.filter((f) => f.id !== action.id),
-        previews: state.previews.filter((p) => p.file_id !== action.id),
-      };
-
-    case 'CLEAR_FILES':
-      return { ...state, files: [], previews: [], previewError: null, lastCompletedJobId: null };
-
-    case 'SET_PREVIEWS':
-      return {
-        ...state,
-        previews: action.previews,
-        previewError: null,
-        files: state.files.map((f) => {
-          const preview = action.previews.find((p) => p.file_id === f.id);
-          return preview
-            ? { ...f, transformed_name: preview.transformed_name }
-            : { ...f, transformed_name: null };
-        }),
-      };
-
-    case 'START_JOB':
-      if (state.lastCompletedJobId === action.jobId) {
-        return state;
-      }
-      return { ...state, activeJobId: action.jobId, isProcessing: true, lastCompletedJobId: null };
-
-    case 'UPDATE_FILE_STATUS':
-      return {
-        ...state,
-        files: state.files.map((f) => {
-          if (f.id !== action.fileId) return f;
-          const pathUpdated = action.status === 'done' && (action.originalPath || action.originalName);
-          return {
-            ...f,
-            status: action.status,
-            original_path: action.originalPath ?? f.original_path,
-            original_name: action.originalName ?? f.original_name,
-            transformed_name: pathUpdated ? null : action.transformedName ?? f.transformed_name,
-            error: action.error ?? null,
-          };
-        }),
-      };
-
-    case 'COMPLETE_JOB':
-      return {
-        ...state,
-        activeJobId: null,
-        isProcessing: false,
-        lastCompletedJobId: action.jobId,
-        // Force a fresh preview before the next Apply — file paths just
-        // changed, so any stale preview would target the wrong source path.
-        previews: [],
-      };
-
-    case 'SET_ACTIVE_TAB':
-      return { ...state, activeTab: action.tab };
-
-    case 'SET_HISTORY':
-      return { ...state, history: action.history };
-
-    case 'SET_SETTINGS':
-      return { ...state, settings: action.settings };
-
-    case 'SET_RENAME_PATTERN':
-      return {
-        ...state,
-        renamePattern: { ...state.renamePattern, ...action.pattern },
-        previews: [],
-        previewError: null,
-        files: state.files.map((f) => ({ ...f, transformed_name: null })),
-      };
-
-    case 'SET_PREVIEW_ERROR':
-      return {
-        ...state,
-        previewError: action.error,
-        previews: action.error ? [] : state.previews,
-        files: action.error
-          ? state.files.map((f) => ({ ...f, transformed_name: null }))
-          : state.files,
-      };
-
-    case 'SET_ERROR':
-      return { ...state, appError: action.error };
-
-    case 'CLEAR_ERROR':
-      return { ...state, appError: null };
-
-    case 'SET_PROCESSING':
-      return { ...state, isProcessing: action.isProcessing };
-
-    default: {
-      const _exhaustive: never = action;
-      return _exhaustive;
-    }
-  }
-}
-
-// --- Context ---
+export type { AppAction, AppState };
 
 interface AppContextValue {
   state: AppState;
@@ -194,7 +11,7 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(appReducer, initialState);
   return (
     <AppContext.Provider value={{ state, dispatch }}>
       {children}
@@ -207,8 +24,6 @@ export function useAppState() {
   if (!ctx) throw new Error('useAppState must be used within AppStateProvider');
   return ctx;
 }
-
-// --- Derived hooks ---
 
 export function useFileStats() {
   const { state } = useAppState();

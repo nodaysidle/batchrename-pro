@@ -23,5 +23,5 @@
     }
   },
   "include": ["src"],
-  "exclude": ["node_modules", "src-tauri/target"]
+  "exclude": ["node_modules", "src-tauri/target", "src/**/*.test.ts"]
 }

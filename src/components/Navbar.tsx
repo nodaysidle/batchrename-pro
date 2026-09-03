@@ -242,7 +242,7 @@ export function Navbar() {
             <div className="mt-4 space-y-3 text-sm leading-6" style={{ color: 'var(--text-muted)' }}>
               <p>Add files with the picker or by dropping files onto the drop zone.</p>
               <p>Rename preview updates automatically as you edit regex, template, numbering, and case settings.</p>
-              <p>Apply is disabled when the preview has duplicate names, invalid names, or an existing target file conflict.</p>
+              <p>Apply is disabled when preview shows a collision (duplicate output names), an invalid name, or an external target that already exists. Occupancy chains and swaps among files in this batch are planned, not blocked.</p>
               <p>Before a rename runs, BatchRename Pro creates backups in the app data directory. Undo restores from those backups and removes only renamed outputs known to belong to that job.</p>
             </div>
           </div>

@@ -642,6 +642,88 @@ fn cancel_before_run_skips_remaining_without_renaming() {
 }
 
 #[test]
+fn cancel_after_temp_hop_keeps_registry_aligned_with_disk() {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    let dir = test_dir("cancel-temp-hop");
+    let left = dir.join("alpha.txt");
+    let right = dir.join("beta.txt");
+    let app_data = dir.join("app-data");
+    write_file(&left, "alpha-content");
+    write_file(&right, "beta-content");
+
+    let files = vec![file_info(&left), file_info(&right)];
+    let previews = swapped_previews(&files);
+    let mut map = HashMap::new();
+    for file in &files {
+        map.insert(file.id.clone(), file.clone());
+    }
+    let registry = Mutex::new(map);
+
+    let conn = Connection::open_in_memory().unwrap();
+    db::run_migrations_for_test(&conn).unwrap();
+
+    let prepared = processing_pipeline::prepare_batch_rename_from_previews(
+        &conn,
+        &app_data,
+        None,
+        files.clone(),
+        previews,
+    )
+    .unwrap();
+    let job_id = prepared.job_id.clone();
+    processing_pipeline::run_prepared_rename_direct_with_after_hop(
+        &conn,
+        Some(&registry),
+        prepared,
+        |step| {
+            let is_temp = step
+                .to
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with(".brp-tmp-"));
+            if is_temp {
+                processing_pipeline::cancel_job(&job_id).unwrap();
+            }
+        },
+    )
+    .unwrap();
+
+    let reg = registry.lock().unwrap();
+    assert_eq!(reg.len(), 2);
+    for entry in reg.values() {
+        assert!(
+            Path::new(&entry.original_path).exists(),
+            "trusted registry path must exist on disk: {}",
+            entry.original_path
+        );
+    }
+
+    let hopped = reg
+        .values()
+        .find(|entry| {
+            Path::new(&entry.original_path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with(".brp-tmp-"))
+        })
+        .expect("cancel after temp hop should leave a file at .brp-tmp-*");
+    assert_eq!(fs::read_to_string(&hopped.original_path).unwrap(), "alpha-content");
+    assert!(
+        !Path::new(&files[0].original_path).exists(),
+        "vacated original must not still hold the hopped file"
+    );
+
+    let other = reg
+        .values()
+        .find(|entry| entry.id != hopped.id)
+        .expect("swap partner remains in registry");
+    assert_eq!(other.original_path, files[1].original_path);
+    assert_eq!(fs::read_to_string(&other.original_path).unwrap(), "beta-content");
+}
+
+#[test]
 fn registry_forget_and_clear_drop_ids_so_hard_cap_counts_live_files_only() {
     use std::collections::HashMap;
     use std::sync::Mutex;
