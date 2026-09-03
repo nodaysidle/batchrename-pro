@@ -238,7 +238,9 @@ _None_
 ### Acceptance Criteria
 _None_
 
-### ✅ Implement audio conversion service (MP3, WAV, FLAC, M4A) (6h)
+### ⏸️ Deferred: Implement audio conversion service (MP3, WAV, FLAC, M4A) (6h)
+
+Rename-only release; see README. `conversion_service.rs` does not exist in the live tree.
 
 Build conversion-service audio module using ffmpeg-next crate bindings. Support MP3↔WAV↔FLAC↔M4A with configurable bitrate/quality. Validate format pairs.
 
@@ -251,7 +253,9 @@ Build conversion-service audio module using ffmpeg-next crate bindings. Support 
 **Dependencies**
 - Define shared TypeScript types and Rust serde structs
 
-### ✅ Implement image conversion service (JPG, PNG, WebP, AVIF) (5h)
+### ⏸️ Deferred: Implement image conversion service (JPG, PNG, WebP, AVIF) (5h)
+
+Rename-only release; see README. No image conversion module exists in the live tree.
 
 Build conversion-service image module using pure-Rust image crate. Support JPG↔PNG↔WebP↔AVIF with compression quality and optional resize while maintaining aspect ratio.
 
@@ -264,7 +268,9 @@ Build conversion-service image module using pure-Rust image crate. Support JPG�
 **Dependencies**
 - Define shared TypeScript types and Rust serde structs
 
-### ✅ Implement video conversion service (MP4, WebM, MKV) (6h)
+### ⏸️ Deferred: Implement video conversion service (MP4, WebM, MKV) (6h)
+
+Rename-only release; see README. No video conversion module exists in the live tree.
 
 Build conversion-service video module using ffmpeg-next with codec selection (libx264, libvpx). Support MP4↔WebM↔MKV with memory-mapped I/O for large files.
 
@@ -277,7 +283,9 @@ Build conversion-service video module using ffmpeg-next with codec selection (li
 **Dependencies**
 - Implement audio conversion service (MP3, WAV, FLAC, M4A)
 
-### ✅ Build Convert tab UI with format selector and quality controls (4h)
+### ⏸️ Deferred: Build Convert tab UI with format selector and quality controls (4h)
+
+Rename-only release; see README. `ConvertTab.tsx` currently renders a "coming soon" placeholder, no format dropdown, quality slider, or advanced options.
 
 Implement ConvertTab with format dropdown, quality slider (0-100), collapsible advanced options (codec, bitrate, resize), and output directory selector.
 
@@ -291,7 +299,9 @@ Implement ConvertTab with format dropdown, quality slider (0-100), collapsible a
 - Implement global state management with useReducer
 - Implement audio conversion service (MP3, WAV, FLAC, M4A)
 
-### ✅ Wire conversion into processing pipeline with parallel execution (5h)
+### ⏸️ Deferred: Wire conversion into processing pipeline with parallel execution (5h)
+
+Rename-only release; see README. `convert_files` is not registered as an IPC command; nothing to wire.
 
 Integrate conversion-service into processing-pipeline with Rayon parallelism, backup creation, per-file progress events, job cancellation via AtomicBool, and history recording.
 
@@ -315,7 +325,9 @@ _None_
 ### Acceptance Criteria
 _None_
 
-### ✅ Implement metadata-service for ID3 and EXIF (5h)
+### ⏸️ Deferred: Implement metadata-service for ID3 and EXIF (5h)
+
+Rename-only release; see README. `metadata_service.rs` does not exist in the live tree; no `id3`/`kamadak-exif` dependencies are present.
 
 Build metadata-service using id3 crate for audio ID3v2 tags and kamadak-exif for image EXIF data. Support read, write, and bulk strip operations with editable field identification.
 
@@ -328,7 +340,9 @@ Build metadata-service using id3 crate for audio ID3v2 tags and kamadak-exif for
 **Dependencies**
 - Define shared TypeScript types and Rust serde structs
 
-### ✅ Build Metadata tab UI with tag editor and bulk strip (5h)
+### ⏸️ Deferred: Build Metadata tab UI with tag editor and bulk strip (5h)
+
+Rename-only release; see README. `MetadataTab.tsx` currently renders a "coming soon" placeholder, no tag editor or strip buttons.
 
 Implement MetadataTab with per-field tag editor inputs, read-only field indicators, and one-click bulk strip buttons for EXIF and ID3. Display metadata on file selection.
 
@@ -342,7 +356,9 @@ Implement MetadataTab with per-field tag editor inputs, read-only field indicato
 - Implement metadata-service for ID3 and EXIF
 - Implement global state management with useReducer
 
-### ✅ Build job history view with FTS5 search (5h)
+### ⏸️ Deferred: Build job history view with FTS5 search (5h)
+
+Partial: `ActionFooter.tsx` shows a basic recent-jobs dropdown via `getJobHistory`. The FTS5 `job_search` table exists in `db.rs`, but no search input, job detail view, or scroll pagination is wired in the UI.
 
 Implement history panel accessible from footer dropdown showing paginated job list with search. Clicking a job shows detail view with per-file results. Search uses FTS5.
 
@@ -355,7 +371,9 @@ Implement history panel accessible from footer dropdown showing paginated job li
 **Dependencies**
 - Build action footer with Apply, progress bar, and history dropdown
 
-### ✅ Implement settings persistence and settings modal (4h)
+### ⏸️ Deferred: Implement settings persistence and settings modal (4h)
+
+Partial: `get_settings`/`update_settings` IPC commands and SQLite persistence exist, but `SettingsModal.tsx` does not exist — there is no navbar-launched modal for accent color, output dir, max parallel jobs, or backup retention.
 
 Build settings modal with theme toggle, accent color picker, default output dir, max parallel jobs, auto-backup toggle, backup retention days. Persist via get_settings/update_settings IPC.
 
@@ -377,7 +395,9 @@ _None_
 ### Acceptance Criteria
 _None_
 
-### ✅ Implement micro-interactions and animations (4h)
+### ⏸️ Deferred: Implement micro-interactions and animations (4h)
+
+Rename-only release; see README. `src/styles/animations.css` does not exist; no stagger, shake, or confetti effects are wired.
 
 Add all TRD-specified animations: 200ms ease-out transitions, staggered file card processing animations (50ms offset), button hover scale+glow, Apply progress fill, error shake, success confetti.
 
@@ -391,7 +411,9 @@ Add all TRD-specified animations: 200ms ease-out transitions, staggered file car
 - Build file list with virtualized rendering
 - Build action footer with Apply, progress bar, and history dropdown
 
-### ✅ Accessibility audit and keyboard navigation (4h)
+### ⏸️ Deferred: Accessibility audit and keyboard navigation (4h)
+
+Partial: `aria-label` attributes exist on many interactive elements, but there is no `aria-live` status region and no `prefers-contrast` high-contrast styling in the live tree.
 
 Ensure all interactive elements are keyboard-navigable (Tab, Enter, Space), add ARIA labels, implement high contrast mode support, add screen reader labels, verify focus ring visibility.
 
@@ -404,7 +426,9 @@ Ensure all interactive elements are keyboard-navigable (Tab, Enter, Space), add 
 **Dependencies**
 - Implement micro-interactions and animations
 
-### ✅ Write unit and integration test suite (6h)
+### ⏸️ Deferred: Write unit and integration test suite (6h)
+
+Partial: Rust unit/integration tests exist and pass (`cargo test`, 19 tests). No frontend Vitest/reducer test suite exists in the live tree.
 
 Unit tests for preview-service, file-service, history-service against in-memory SQLite, frontend reducer, and IPC error parsing. Integration tests for full rename and convert flows with temp directories.
 
@@ -418,7 +442,9 @@ Unit tests for preview-service, file-service, history-service against in-memory 
 - Implement undo_job with backup restoration
 - Wire conversion into processing pipeline with parallel execution
 
-### ✅ Performance benchmarking and optimization (4h)
+### ⏸️ Deferred: Performance benchmarking and optimization (4h)
+
+Partial: `lto`/`strip` are enabled in `Cargo.toml`, but no automated 500-file preview benchmark, startup-time measurement, or bundle-size check exists in the live tree.
 
 Benchmark preview_rename under 100ms for 500 files, app startup under 2s, IPC round-trip for 500 file payloads under 100ms. Optimize hot paths. Enable LTO in release builds.
 
@@ -431,7 +457,9 @@ Benchmark preview_rename under 100ms for 500 files, app startup under 2s, IPC ro
 **Dependencies**
 - Write unit and integration test suite
 
-### ✅ Cross-platform CI/CD and auto-updater setup (5h)
+### ⏸️ Deferred: Cross-platform CI/CD and auto-updater setup (5h)
+
+Partial: `.github/workflows/build.yml` builds macOS (arm64/x86_64) and Ubuntu only — no Windows job. No Tauri auto-updater configuration exists in `tauri.conf.json`.
 
 Configure GitHub Actions matrix builds for macOS, Windows, Linux. Set up Tauri auto-updater with GitHub Releases manifest. Code signing for macOS (notarization) and Windows.
 

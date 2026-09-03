@@ -283,6 +283,66 @@ pub fn get_setting(conn: &Connection, key: &str) -> SqlResult<Option<String>> {
     }
 }
 
+/// Validate and, where applicable, clamp a settings key/value pair before it
+/// is persisted. Rejects keys outside the known settings surface so the
+/// webview cannot write arbitrary key/value data into the settings table.
+pub fn validate_setting(key: &str, value: &str) -> Result<String, String> {
+    match key {
+        "theme" => match value {
+            "dark" | "light" => Ok(value.to_string()),
+            _ => Err(format!(
+                "INVALID_SETTING: theme must be 'dark' or 'light', got '{}'",
+                value
+            )),
+        },
+        "accent_color" => match value {
+            "volt" | "graphite" => Ok(value.to_string()),
+            _ => Err(format!(
+                "INVALID_SETTING: accent_color must be 'volt' or 'graphite', got '{}'",
+                value
+            )),
+        },
+        "default_output_dir" => Ok(value.to_string()),
+        "max_parallel_jobs" => {
+            let parsed: u32 = value.parse().map_err(|_| {
+                format!(
+                    "INVALID_SETTING: max_parallel_jobs must be a number, got '{}'",
+                    value
+                )
+            })?;
+            Ok(parsed.clamp(1, 16).to_string())
+        }
+        "auto_backup" => match value {
+            "true" | "false" => Ok(value.to_string()),
+            _ => Err(format!(
+                "INVALID_SETTING: auto_backup must be 'true' or 'false', got '{}'",
+                value
+            )),
+        },
+        "backup_retention_days" => {
+            let parsed: u32 = value.parse().map_err(|_| {
+                format!(
+                    "INVALID_SETTING: backup_retention_days must be a number, got '{}'",
+                    value
+                )
+            })?;
+            Ok(parsed.clamp(0, 3650).to_string())
+        }
+        "last_rename_pattern" => Ok(value.to_string()),
+        "last_convert_format" => Ok(value.to_string()),
+        "file_hard_cap" => {
+            let parsed: u32 = value.parse().map_err(|_| {
+                format!(
+                    "INVALID_SETTING: file_hard_cap must be a number, got '{}'",
+                    value
+                )
+            })?;
+            Ok(parsed.clamp(1, 10000).to_string())
+        }
+        _ => Err(format!("INVALID_SETTING: unknown key '{}'", key)),
+    }
+}
+
 pub fn set_setting(conn: &Connection, key: &str, value: &str) -> SqlResult<()> {
     conn.execute(
         "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?1, ?2, datetime('now'))",

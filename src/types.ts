@@ -76,6 +76,11 @@ export interface JobProgressEvent {
   error_message: string | null;
   files_completed: number;
   files_total: number;
+  transformed_path: string | null;
+}
+
+export interface JobStartedEvent {
+  job_id: string;
 }
 
 export interface JobCompleteEvent {

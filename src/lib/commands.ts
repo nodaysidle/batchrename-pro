@@ -48,6 +48,16 @@ export async function addFiles(paths: string[]): Promise<AddFilesResponse> {
   return safeInvoke('add_files', { paths });
 }
 
+/** Drop trusted ids so the Rust registry stays 1:1 with the UI list */
+export async function forgetFiles(fileIds: string[]): Promise<number> {
+  return safeInvoke('forget_files', { fileIds });
+}
+
+/** Clear the trusted session registry */
+export async function clearFiles(): Promise<number> {
+  return safeInvoke('clear_files');
+}
+
 /** Preview rename transformations without applying */
 export async function previewRename(
   fileIds: string[],

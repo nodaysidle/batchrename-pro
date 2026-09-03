@@ -256,6 +256,8 @@ Implement the full rename workflow: Rust preview-service for regex/template patt
 
 ---
 
+> **v0.1.0 reality check**: Convert/Metadata backends, `SettingsModal.tsx`, `src/styles/animations.css`, frontend Vitest suite, Windows CI, and updater are **not** shipped. Treat Task 4–5 prompts as backlog, not acceptance. Live product is rename + backup + undo.
+
 ### Task 4: Format Conversion & Metadata Editing
 
 **Role:** Expert Rust Media Processing + React UI Engineer

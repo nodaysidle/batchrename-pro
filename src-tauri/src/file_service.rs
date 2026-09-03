@@ -4,7 +4,7 @@ use image::ImageReader;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::io::Cursor;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const AUDIO_EXTS: &[&str] = &["mp3", "wav", "flac", "m4a", "aac", "ogg", "wma", "aiff"];
 const IMAGE_EXTS: &[&str] = &[
@@ -114,6 +114,16 @@ fn base64_encode(data: &[u8]) -> String {
     result
 }
 
+/// Re-canonicalize a previously trusted path, confirming it still exists.
+/// Used by preview/apply commands to re-validate server-held `FileInfo`
+/// entries instead of trusting client-supplied path strings.
+pub fn revalidate_path(path_str: &str) -> Result<String, String> {
+    let canonical = Path::new(path_str)
+        .canonicalize()
+        .map_err(|_| format!("FILE_NOT_FOUND: {}", path_str))?;
+    Ok(canonical.to_string_lossy().to_string())
+}
+
 pub fn create_backup(original_path: &str, backup_dir: &Path) -> Result<String, String> {
     std::fs::create_dir_all(backup_dir).map_err(|e| format!("BACKUP_FAILED: {}", e))?;
 
@@ -142,4 +152,41 @@ pub fn create_backup(original_path: &str, backup_dir: &Path) -> Result<String, S
 pub fn restore_from_backup(backup_path: &str, original_path: &str) -> Result<(), String> {
     std::fs::copy(backup_path, original_path).map_err(|e| format!("RESTORE_FAILED: {}", e))?;
     Ok(())
+}
+
+pub fn paths_refer_to_same_file(left: &Path, right: &Path) -> bool {
+    match (left.canonicalize(), right.canonicalize()) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => false,
+    }
+}
+
+/// Stable occupancy key: canonical path when the file exists, otherwise
+/// canonical parent + filename so planned destinations can be compared.
+pub fn path_key(path: &Path) -> String {
+    if let Ok(canonical) = path.canonicalize() {
+        return canonical.to_string_lossy().to_string();
+    }
+    let parent = path
+        .parent()
+        .and_then(|p| p.canonicalize().ok())
+        .unwrap_or_else(|| path.parent().unwrap_or(Path::new(".")).to_path_buf());
+    parent
+        .join(path.file_name().unwrap_or_default())
+        .to_string_lossy()
+        .to_string()
+}
+
+pub fn unique_temp_path(dir: &Path, ext: &str) -> PathBuf {
+    loop {
+        let mut name = format!(".brp-tmp-{}", uuid::Uuid::new_v4());
+        if !ext.is_empty() {
+            name.push('.');
+            name.push_str(ext);
+        }
+        let candidate = dir.join(name);
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
 }

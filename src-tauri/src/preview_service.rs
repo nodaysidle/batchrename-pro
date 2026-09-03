@@ -1,6 +1,29 @@
+use crate::file_service;
 use crate::types::{CaseTransform, FileInfo, PreviewPair, RenameMode, RenamePattern};
 use chrono::Local;
 use regex::Regex;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
+
+/// One filesystem hop in a planned apply. Swaps/cycles may produce a temp hop
+/// (`create_backup` is true only on the file's first hop from the original path).
+#[derive(Debug, Clone)]
+pub struct RenameStep {
+    pub file_index: usize,
+    pub file_id: String,
+    pub from: PathBuf,
+    pub to: PathBuf,
+    pub create_backup: bool,
+}
+
+struct PlannedMove {
+    index: usize,
+    file_id: String,
+    from: PathBuf,
+    to: PathBuf,
+    create_backup: bool,
+    ext: String,
+}
 
 pub fn generate_previews(
     files: &[FileInfo],
@@ -21,7 +44,7 @@ pub fn generate_previews(
 
     // Detect conflicts inside the batch. Mark both the first output and later
     // duplicates so the UI can block the whole unsafe set.
-    let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut seen: HashMap<String, usize> = HashMap::new();
     let mut duplicate_pairs = Vec::new();
     for (i, preview) in previews.iter().enumerate() {
         let parent = Path::new(&files[i].original_path)
@@ -46,32 +69,152 @@ pub fn generate_previews(
             Some(format!("Duplicates file #{}", first_idx + 1));
     }
 
-    for (i, preview) in previews.iter_mut().enumerate() {
-        if preview.has_conflict {
+    mark_occupancy_conflicts(files, &mut previews);
+
+    Ok(previews)
+}
+
+fn dest_path(file: &FileInfo, transformed_name: &str) -> PathBuf {
+    Path::new(&file.original_path)
+        .parent()
+        .unwrap_or(Path::new(""))
+        .join(transformed_name)
+}
+
+/// Occupancy is a preview rule: an existing target is fatal only when it is
+/// *not* being vacated by another file in this batch. Intra-batch chains
+/// (A→B while B→C) and swaps are planned at apply time, not blocked here.
+pub(crate) fn mark_occupancy_conflicts(files: &[FileInfo], previews: &mut [PreviewPair]) {
+    let mut source_index: HashMap<String, usize> = HashMap::new();
+    for (i, file) in files.iter().enumerate() {
+        source_index.insert(file_service::path_key(Path::new(&file.original_path)), i);
+    }
+
+    let moving: Vec<bool> = files
+        .iter()
+        .enumerate()
+        .map(|(i, file)| {
+            let dest = dest_path(file, &previews[i].transformed_name);
+            file_service::path_key(Path::new(&file.original_path)) != file_service::path_key(&dest)
+        })
+        .collect();
+
+    for i in 0..previews.len() {
+        if previews[i].has_conflict {
             continue;
         }
         let original_path = Path::new(&files[i].original_path);
-        let parent = original_path.parent().unwrap_or(Path::new(""));
-        let target_path = parent.join(&preview.transformed_name);
-        if target_path.exists() {
-            let target_is_source = target_path
-                .canonicalize()
-                .ok()
-                .and_then(|target| {
-                    original_path
-                        .canonicalize()
-                        .ok()
-                        .map(|source| target == source)
-                })
-                .unwrap_or(false);
-            if !target_is_source {
-                preview.has_conflict = true;
-                preview.conflict_reason = Some("Target already exists".into());
+        let target_path = dest_path(&files[i], &previews[i].transformed_name);
+        if !target_path.exists() {
+            continue;
+        }
+        if file_service::paths_refer_to_same_file(original_path, &target_path) {
+            continue;
+        }
+
+        let occupant_idx = source_index.get(&file_service::path_key(&target_path)).copied();
+        if let Some(occ) = occupant_idx {
+            if occ != i && moving[occ] {
+                // Occupant is in this batch and will move away — plan, don't block.
+                continue;
             }
         }
+
+        previews[i].has_conflict = true;
+        previews[i].conflict_reason = Some("Target already exists".into());
+    }
+}
+
+/// Build a sequential apply order: reverse-occupancy (vacate destinations
+/// first). Cycles (swaps) get a unique temp hop in the same directory.
+pub fn plan_renames(files: &[FileInfo], previews: &[PreviewPair]) -> Result<Vec<RenameStep>, String> {
+    if files.len() != previews.len() {
+        return Err("PLAN_ERROR: Preview count does not match file count".into());
+    }
+    if previews.iter().any(|p| p.has_conflict) {
+        return Err("CONFLICTS_DETECTED: Resolve preview conflicts before applying".into());
     }
 
-    Ok(previews)
+    let mut remaining: Vec<PlannedMove> = Vec::new();
+    for (i, file) in files.iter().enumerate() {
+        let from = PathBuf::from(&file.original_path);
+        let to = dest_path(file, &previews[i].transformed_name);
+        if file_service::path_key(&from) == file_service::path_key(&to) {
+            continue;
+        }
+        remaining.push(PlannedMove {
+            index: i,
+            file_id: file.id.clone(),
+            from,
+            to,
+            create_backup: true,
+            ext: file.extension.clone(),
+        });
+    }
+
+    let mut steps = Vec::new();
+    while !remaining.is_empty() {
+        let ready_idx = find_ready_indices(&remaining);
+        if ready_idx.is_empty() {
+            // Cycle: hop the first remaining file to a temp name so its
+            // original path is vacated and the rest of the cycle can proceed.
+            let mut hop = remaining.remove(0);
+            let parent = hop
+                .from
+                .parent()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."));
+            let temp = file_service::unique_temp_path(&parent, &hop.ext);
+            steps.push(RenameStep {
+                file_index: hop.index,
+                file_id: hop.file_id.clone(),
+                from: hop.from.clone(),
+                to: temp.clone(),
+                create_backup: hop.create_backup,
+            });
+            hop.from = temp;
+            hop.create_backup = false;
+            remaining.insert(0, hop);
+            continue;
+        }
+
+        let ready_set: HashSet<usize> = ready_idx.into_iter().collect();
+        let mut next_remaining = Vec::new();
+        for (i, mv) in remaining.into_iter().enumerate() {
+            if ready_set.contains(&i) {
+                steps.push(RenameStep {
+                    file_index: mv.index,
+                    file_id: mv.file_id,
+                    from: mv.from,
+                    to: mv.to,
+                    create_backup: mv.create_backup,
+                });
+            } else {
+                next_remaining.push(mv);
+            }
+        }
+        remaining = next_remaining;
+    }
+
+    Ok(steps)
+}
+
+fn find_ready_indices(moves: &[PlannedMove]) -> Vec<usize> {
+    let occupied: HashMap<String, usize> = moves
+        .iter()
+        .enumerate()
+        .map(|(i, mv)| (file_service::path_key(&mv.from), i))
+        .collect();
+
+    moves
+        .iter()
+        .enumerate()
+        .filter(|(i, mv)| match occupied.get(&file_service::path_key(&mv.to)) {
+            None => true,
+            Some(&occ) => occ == *i,
+        })
+        .map(|(i, _)| i)
+        .collect()
 }
 
 fn apply_pattern(file: &FileInfo, pattern: &RenamePattern, index: usize) -> Result<String, String> {
@@ -89,12 +232,15 @@ fn apply_pattern(file: &FileInfo, pattern: &RenamePattern, index: usize) -> Resu
     // Apply case transform
     result = apply_case_transform(&result, &pattern.case_transform);
 
-    // Apply prefix/suffix
-    if let Some(prefix) = &pattern.prefix {
-        result = format!("{}{}", prefix, result);
-    }
-    if let Some(suffix) = &pattern.suffix {
-        result = format!("{}{}", result, suffix);
+    // Apply prefix/suffix. Numbering mode already embeds prefix/suffix in
+    // apply_numbering, so applying them again here would double them up.
+    if !matches!(pattern.mode, RenameMode::Numbering) {
+        if let Some(prefix) = &pattern.prefix {
+            result = format!("{}{}", prefix, result);
+        }
+        if let Some(suffix) = &pattern.suffix {
+            result = format!("{}{}", result, suffix);
+        }
     }
 
     // Validate the stem before re-adding extensions. A pattern that produces
@@ -178,7 +324,11 @@ fn apply_numbering(pattern: &RenamePattern, index: usize) -> Result<String, Stri
     let num = start + index;
     let pad = pattern.zero_pad.unwrap_or(0) as usize;
 
-    let prefix = pattern.prefix.as_deref().unwrap_or("file");
+    let prefix = pattern
+        .prefix
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or("file");
     let suffix = pattern.suffix.as_deref().unwrap_or("");
 
     if pad > 0 {
@@ -206,5 +356,3 @@ fn apply_case_transform(s: &str, transform: &CaseTransform) -> String {
             .join(" "),
     }
 }
-
-use std::path::Path;

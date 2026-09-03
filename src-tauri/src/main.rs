@@ -7,12 +7,50 @@ mod tests;
 mod types;
 
 use rusqlite::Connection;
+use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::Manager;
 use types::*;
 
 struct AppState {
     db: Mutex<Option<Connection>>,
+    /// Server-trusted files added via `add_files`, keyed by file id. Preview/apply
+    /// commands resolve paths from this registry instead of trusting client-supplied
+    /// `FileInfo.original_path` values, since the webview is not a trusted boundary.
+    file_registry: Mutex<HashMap<String, FileInfo>>,
+}
+
+/// Look up trusted `FileInfo` entries by id and re-canonicalize their paths,
+/// rejecting ids that are unknown or whose backing file no longer exists.
+fn lookup_trusted_files(
+    state: &tauri::State<'_, AppState>,
+    file_ids: &[String],
+) -> Result<Vec<FileInfo>, String> {
+    let registry = state.file_registry.lock().unwrap();
+    let mut trusted = Vec::with_capacity(file_ids.len());
+    for id in file_ids {
+        let mut file = registry
+            .get(id)
+            .cloned()
+            .ok_or_else(|| format!("UNKNOWN_FILE: {}", id))?;
+        file.original_path = file_service::revalidate_path(&file.original_path)?;
+        trusted.push(file);
+    }
+    Ok(trusted)
+}
+
+pub(crate) fn forget_registry_ids(
+    registry: &Mutex<HashMap<String, FileInfo>>,
+    ids: &[String],
+) {
+    let mut reg = registry.lock().unwrap();
+    for id in ids {
+        reg.remove(id);
+    }
+}
+
+pub(crate) fn clear_registry(registry: &Mutex<HashMap<String, FileInfo>>) {
+    registry.lock().unwrap().clear();
 }
 
 #[tauri::command]
@@ -30,12 +68,19 @@ async fn add_files(
         .unwrap_or(5000);
 
     let mut files = Vec::new();
-    let mut current_count = 0u32;
+    // Seed from the registry's live size so the hard cap is enforced across the
+    // whole session, not just within a single `add_files` invocation.
+    let mut current_count = state.file_registry.lock().unwrap().len() as u32;
 
     for path in &paths {
         match file_service::validate_and_build_file_info(path, hard_cap, current_count) {
             Ok(file_info) => {
                 current_count += 1;
+                state
+                    .file_registry
+                    .lock()
+                    .unwrap()
+                    .insert(file_info.id.clone(), file_info.clone());
                 files.push(file_info);
             }
             Err(e) => {
@@ -54,17 +99,33 @@ async fn add_files(
 }
 
 #[tauri::command]
+async fn forget_files(
+    file_ids: Vec<String>,
+    state: tauri::State<'_, AppState>,
+) -> Result<u32, String> {
+    forget_registry_ids(&state.file_registry, &file_ids);
+    Ok(state.file_registry.lock().unwrap().len() as u32)
+}
+
+#[tauri::command]
+async fn clear_files(state: tauri::State<'_, AppState>) -> Result<u32, String> {
+    clear_registry(&state.file_registry);
+    Ok(0)
+}
+
+#[tauri::command]
 async fn preview_rename(
     file_ids: Vec<String>,
     files: Vec<FileInfo>,
     pattern: RenamePattern,
+    state: tauri::State<'_, AppState>,
 ) -> Result<PreviewResponse, String> {
-    let filtered: Vec<FileInfo> = files
-        .into_iter()
-        .filter(|f| file_ids.contains(&f.id))
-        .collect();
+    // Client-supplied `files` is accepted only for API compatibility; the
+    // webview is not a trusted boundary, so paths are resolved server-side.
+    let _ = files;
+    let trusted = lookup_trusted_files(&state, &file_ids)?;
 
-    let previews = preview_service::generate_previews(&filtered, &pattern)?;
+    let previews = preview_service::generate_previews(&trusted, &pattern)?;
     let conflicts = previews.iter().filter(|p| p.has_conflict).count() as u32;
 
     Ok(PreviewResponse {
@@ -81,16 +142,35 @@ async fn apply_rename(
     pattern: RenamePattern,
     state: tauri::State<'_, AppState>,
 ) -> Result<JobStartResponse, String> {
-    let db = state.db.lock().unwrap();
-    let conn = db.as_ref().ok_or("DB_NOT_INIT")?;
+    // Client-supplied `files` is accepted only for API compatibility; the
+    // webview is not a trusted boundary, so paths are resolved server-side.
+    let _ = files;
+    let trusted = lookup_trusted_files(&state, &file_ids)?;
+    let file_count = trusted.len();
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("APP_DATA_ERROR: {}", e))?;
 
-    let filtered: Vec<FileInfo> = files
-        .into_iter()
-        .filter(|f| file_ids.contains(&f.id))
-        .collect();
+    let prepared = {
+        let db = state.db.lock().unwrap();
+        let conn = db.as_ref().ok_or("DB_NOT_INIT")?;
+        processing_pipeline::prepare_batch_rename(conn, &app_data, Some(&app), trusted, pattern)?
+    };
 
-    let file_count = filtered.len();
-    let job_id = processing_pipeline::execute_batch_rename(&app, conn, filtered, pattern)?;
+    let job_id = prepared.job_id.clone();
+    let worker = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = worker.state::<AppState>();
+        if let Err(error) = processing_pipeline::run_prepared_rename_locked(
+            &state.db,
+            &worker,
+            &state.file_registry,
+            prepared,
+        ) {
+            tracing::error!("rename job failed: {error}");
+        }
+    });
 
     Ok(JobStartResponse {
         job_id,
@@ -107,7 +187,7 @@ async fn undo_job(
 ) -> Result<UndoResponse, String> {
     let db = state.db.lock().unwrap();
     let conn = db.as_ref().ok_or("DB_NOT_INIT")?;
-    processing_pipeline::undo_batch(&app, conn, &job_id)
+    processing_pipeline::undo_batch(&app, conn, &job_id, Some(&state.file_registry))
 }
 
 #[tauri::command]
@@ -143,7 +223,8 @@ async fn update_settings(
     let conn = db.as_ref().ok_or("DB_NOT_INIT")?;
 
     for (key, value) in &settings {
-        db::set_setting(conn, key, value).map_err(|e| format!("DB_ERROR: {}", e))?;
+        let validated = db::validate_setting(key, value)?;
+        db::set_setting(conn, key, &validated).map_err(|e| format!("DB_ERROR: {}", e))?;
     }
     Ok(true)
 }
@@ -158,9 +239,9 @@ async fn open_file_picker() -> Result<Vec<String>, String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
         .manage(AppState {
             db: Mutex::new(None),
+            file_registry: Mutex::new(HashMap::new()),
         })
         .setup(|app| {
             let app_data = app.path().app_data_dir()?;
@@ -200,6 +281,8 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             add_files,
+            forget_files,
+            clear_files,
             preview_rename,
             apply_rename,
             undo_job,
