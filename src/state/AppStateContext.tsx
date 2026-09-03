@@ -107,6 +107,9 @@ function reducer(state: AppState, action: AppAction): AppState {
       };
 
     case 'START_JOB':
+      if (state.lastCompletedJobId === action.jobId) {
+        return state;
+      }
       return { ...state, activeJobId: action.jobId, isProcessing: true, lastCompletedJobId: null };
 
     case 'UPDATE_FILE_STATUS':
@@ -174,8 +177,10 @@ function reducer(state: AppState, action: AppAction): AppState {
     case 'SET_PROCESSING':
       return { ...state, isProcessing: action.isProcessing };
 
-    default:
-      return state;
+    default: {
+      const _exhaustive: never = action;
+      return _exhaustive;
+    }
   }
 }
 

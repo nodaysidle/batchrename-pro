@@ -296,9 +296,9 @@ pub fn validate_setting(key: &str, value: &str) -> Result<String, String> {
             )),
         },
         "accent_color" => match value {
-            "blue" | "violet" => Ok(value.to_string()),
+            "volt" | "graphite" => Ok(value.to_string()),
             _ => Err(format!(
-                "INVALID_SETTING: accent_color must be 'blue' or 'violet', got '{}'",
+                "INVALID_SETTING: accent_color must be 'volt' or 'graphite', got '{}'",
                 value
             )),
         },

@@ -39,6 +39,20 @@ fn lookup_trusted_files(
     Ok(trusted)
 }
 
+pub(crate) fn forget_registry_ids(
+    registry: &Mutex<HashMap<String, FileInfo>>,
+    ids: &[String],
+) {
+    let mut reg = registry.lock().unwrap();
+    for id in ids {
+        reg.remove(id);
+    }
+}
+
+pub(crate) fn clear_registry(registry: &Mutex<HashMap<String, FileInfo>>) {
+    registry.lock().unwrap().clear();
+}
+
 #[tauri::command]
 async fn add_files(
     paths: Vec<String>,
@@ -85,6 +99,21 @@ async fn add_files(
 }
 
 #[tauri::command]
+async fn forget_files(
+    file_ids: Vec<String>,
+    state: tauri::State<'_, AppState>,
+) -> Result<u32, String> {
+    forget_registry_ids(&state.file_registry, &file_ids);
+    Ok(state.file_registry.lock().unwrap().len() as u32)
+}
+
+#[tauri::command]
+async fn clear_files(state: tauri::State<'_, AppState>) -> Result<u32, String> {
+    clear_registry(&state.file_registry);
+    Ok(0)
+}
+
+#[tauri::command]
 async fn preview_rename(
     file_ids: Vec<String>,
     files: Vec<FileInfo>,
@@ -117,18 +146,31 @@ async fn apply_rename(
     // webview is not a trusted boundary, so paths are resolved server-side.
     let _ = files;
     let trusted = lookup_trusted_files(&state, &file_ids)?;
-
-    let db = state.db.lock().unwrap();
-    let conn = db.as_ref().ok_or("DB_NOT_INIT")?;
-
     let file_count = trusted.len();
-    let job_id = processing_pipeline::execute_batch_rename(
-        &app,
-        conn,
-        &state.file_registry,
-        trusted,
-        pattern,
-    )?;
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("APP_DATA_ERROR: {}", e))?;
+
+    let prepared = {
+        let db = state.db.lock().unwrap();
+        let conn = db.as_ref().ok_or("DB_NOT_INIT")?;
+        processing_pipeline::prepare_batch_rename(conn, &app_data, Some(&app), trusted, pattern)?
+    };
+
+    let job_id = prepared.job_id.clone();
+    let worker = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = worker.state::<AppState>();
+        if let Err(error) = processing_pipeline::run_prepared_rename_locked(
+            &state.db,
+            &worker,
+            &state.file_registry,
+            prepared,
+        ) {
+            tracing::error!("rename job failed: {error}");
+        }
+    });
 
     Ok(JobStartResponse {
         job_id,
@@ -145,7 +187,7 @@ async fn undo_job(
 ) -> Result<UndoResponse, String> {
     let db = state.db.lock().unwrap();
     let conn = db.as_ref().ok_or("DB_NOT_INIT")?;
-    processing_pipeline::undo_batch(&app, conn, &job_id)
+    processing_pipeline::undo_batch(&app, conn, &job_id, Some(&state.file_registry))
 }
 
 #[tauri::command]
@@ -239,6 +281,8 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             add_files,
+            forget_files,
+            clear_files,
             preview_rename,
             apply_rename,
             undo_job,

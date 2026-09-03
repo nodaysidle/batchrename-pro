@@ -4,6 +4,7 @@ import {
   applyRename as applyRenameCmd,
   undoJob as undoJobCmd,
   cancelJob as cancelJobCmd,
+  clearFiles,
   getJobHistory,
   parseError,
 } from '@/lib/commands';
@@ -35,10 +36,9 @@ export function ActionFooter() {
       };
       const fileIds = state.files.map((f) => f.id);
       const result = await applyRenameCmd(fileIds, state.files, pattern);
-      // applyRename only resolves once the batch has fully run, but job_complete
-      // may have raced or been missed — completing from the invoke result
-      // guarantees isProcessing/lastCompletedJobId never get stuck.
-      dispatch({ type: 'COMPLETE_JOB', jobId: result.job_id });
+      // apply_rename starts the job and returns immediately. Completion is
+      // streamed via job_progress / job_complete — do not COMPLETE_JOB here.
+      dispatch({ type: 'START_JOB', jobId: result.job_id });
     } catch (err) {
       dispatch({ type: 'SET_PROCESSING', isProcessing: false });
       dispatch({ type: 'SET_ERROR', error: parseError(err) });
@@ -62,7 +62,7 @@ export function ActionFooter() {
       try {
         const result = await undoJobCmd(jobId);
         if (result.success) {
-          // Refresh files state — all done -> pending
+          await clearFiles();
           dispatch({ type: 'CLEAR_FILES' });
           await refreshHistory();
         } else {

@@ -30,7 +30,7 @@ Format conversion and metadata editing are **not shipped** in v0.1.0 (backlog). 
 |------|------------|
 | Shell | Tauri 2 |
 | Frontend | Vite 6, React 19, TypeScript, Tailwind CSS 4 |
-| Backend | Rust 2021, Rayon (parallel processing) |
+| Backend | Rust 2021, sequential rename apply |
 | Storage | SQLite via rusqlite (WAL mode), FTS5 |
 
 ## Requirements
@@ -76,7 +76,7 @@ Release binary: `src-tauri/target/release/bundle/macos/BatchRename Pro.app`
                    │ Tauri IPC
 ┌──────────────────┴──────────────────────────────┐
 │  Rust Backend                                   │
-│  Preview Service │ File Service │ Processing Pipeline (Rayon) │
+│  Preview Service │ File Service │ Processing Pipeline (sequential apply) │
 │  SQLite (WAL)    │ Convert/Metadata (not shipped) │
 └─────────────────────────────────────────────────┘
 ```

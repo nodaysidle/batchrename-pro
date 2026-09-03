@@ -1,9 +1,8 @@
 use crate::db;
 use crate::file_service;
-use crate::preview_service;
+use crate::preview_service::{self, RenameStep};
 use crate::types::*;
-use rayon::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -16,15 +15,35 @@ static CANCEL_FLAGS: once_cell::sync::Lazy<
     Arc<Mutex<std::collections::HashMap<String, Arc<AtomicBool>>>>,
 > = once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(std::collections::HashMap::new())));
 
-#[derive(Debug)]
-struct RenameOutcome {
-    job_file_id: String,
-    transformed_path: Option<String>,
-    backup_path: Option<String>,
-    status: &'static str,
-    error: Option<String>,
+enum DbAccess<'a> {
+    Direct(&'a rusqlite::Connection),
+    Locked(&'a Mutex<Option<rusqlite::Connection>>),
 }
 
+impl DbAccess<'_> {
+    fn with<T>(&self, f: impl FnOnce(&rusqlite::Connection) -> Result<T, String>) -> Result<T, String> {
+        match self {
+            DbAccess::Direct(conn) => f(conn),
+            DbAccess::Locked(mutex) => {
+                let guard = mutex.lock().unwrap();
+                let conn = guard.as_ref().ok_or("DB_NOT_INIT")?;
+                f(conn)
+            }
+        }
+    }
+}
+
+pub struct PreparedRename {
+    pub job_id: String,
+    files: Vec<FileInfo>,
+    plan: Vec<RenameStep>,
+    job_file_ids: Vec<String>,
+    backup_dir: PathBuf,
+    cancel_flag: Arc<AtomicBool>,
+    start_time: Instant,
+}
+
+#[allow(dead_code)]
 pub fn execute_batch_rename(
     app: &AppHandle,
     conn: &rusqlite::Connection,
@@ -47,11 +66,36 @@ pub fn execute_batch_rename_with_paths(
     files: Vec<FileInfo>,
     pattern: RenamePattern,
 ) -> Result<String, String> {
+    let prepared = prepare_batch_rename(conn, app_data, app, files, pattern)?;
+    let job_id = prepared.job_id.clone();
+    run_prepared_rename(DbAccess::Direct(conn), app, registry, prepared)?;
+    Ok(job_id)
+}
+
+/// Create the job row, cancel flag, and occupancy plan. Does not rename.
+/// The caller must drop any DB lock before `run_prepared_rename`.
+pub fn prepare_batch_rename(
+    conn: &rusqlite::Connection,
+    app_data: &Path,
+    app: Option<&AppHandle>,
+    files: Vec<FileInfo>,
+    pattern: RenamePattern,
+) -> Result<PreparedRename, String> {
     if files.is_empty() {
         return Err("NO_FILES: Add files before applying rename".into());
     }
 
     let previews = preview_service::generate_previews(&files, &pattern)?;
+    prepare_batch_rename_from_previews(conn, app_data, app, files, previews)
+}
+
+pub fn prepare_batch_rename_from_previews(
+    conn: &rusqlite::Connection,
+    app_data: &Path,
+    app: Option<&AppHandle>,
+    files: Vec<FileInfo>,
+    previews: Vec<crate::types::PreviewPair>,
+) -> Result<PreparedRename, String> {
     let conflicts: Vec<String> = previews
         .iter()
         .filter(|p| p.has_conflict)
@@ -66,6 +110,8 @@ pub fn execute_batch_rename_with_paths(
     if !conflicts.is_empty() {
         return Err(format!("CONFLICTS_DETECTED: {}", conflicts.join("; ")));
     }
+
+    let plan = preview_service::plan_renames(&files, &previews)?;
 
     let job_id = uuid::Uuid::new_v4().to_string();
     let start_time = Instant::now();
@@ -118,169 +164,370 @@ pub fn execute_batch_rename_with_paths(
         );
     }
 
+    Ok(PreparedRename {
+        job_id,
+        files,
+        plan,
+        job_file_ids,
+        backup_dir,
+        cancel_flag,
+        start_time,
+    })
+}
+
+pub fn run_prepared_rename_locked(
+    db: &Mutex<Option<rusqlite::Connection>>,
+    app: &AppHandle,
+    registry: &Mutex<HashMap<String, FileInfo>>,
+    prepared: PreparedRename,
+) -> Result<(), String> {
+    run_prepared_rename(DbAccess::Locked(db), Some(app), Some(registry), prepared)
+}
+
+pub fn run_prepared_rename_direct(
+    conn: &rusqlite::Connection,
+    registry: Option<&Mutex<HashMap<String, FileInfo>>>,
+    prepared: PreparedRename,
+) -> Result<(), String> {
+    run_prepared_rename(DbAccess::Direct(conn), None, registry, prepared)
+}
+
+fn run_prepared_rename(
+    db: DbAccess<'_>,
+    app: Option<&AppHandle>,
+    registry: Option<&Mutex<HashMap<String, FileInfo>>>,
+    prepared: PreparedRename,
+) -> Result<(), String> {
+    let PreparedRename {
+        job_id,
+        files,
+        plan,
+        job_file_ids,
+        backup_dir,
+        cancel_flag,
+        start_time,
+    } = prepared;
+
     let files_total = files.len() as u32;
-    let processed_count = Arc::new(Mutex::new(0u32));
-    let app_handle = app.cloned();
+    let mut last_step_for_file: HashMap<String, usize> = HashMap::new();
+    for (i, step) in plan.iter().enumerate() {
+        last_step_for_file.insert(step.file_id.clone(), i);
+    }
 
-    let outcomes: Vec<RenameOutcome> = files
-        .par_iter()
-        .zip(previews.par_iter())
-        .zip(job_file_ids.par_iter())
-        .map(|((file, preview), job_file_id)| {
-            if cancel_flag.load(Ordering::Relaxed) {
-                return RenameOutcome {
-                    job_file_id: job_file_id.clone(),
-                    transformed_path: None,
-                    backup_path: None,
-                    status: "failed",
-                    error: Some("CANCELLED: Job was cancelled".into()),
-                };
-            }
+    let mut backups: HashMap<String, String> = HashMap::new();
+    let mut terminal: HashSet<String> = HashSet::new();
+    let mut completed = 0u32;
+    let mut failed = 0u32;
+    let mut processed = 0u32;
 
+    if cancel_flag.load(Ordering::Relaxed) {
+        for (idx, file) in files.iter().enumerate() {
+            processed += 1;
+            failed += 1;
+            let error = "CANCELLED: Job was cancelled".to_string();
             emit_progress(
-                app_handle.as_ref(),
+                app,
                 &job_id,
                 &file.id,
                 &file.original_name,
-                "processing",
-                25.0,
-                None,
-                *processed_count.lock().unwrap(),
+                "failed",
+                0.0,
+                Some(&error),
+                processed,
                 files_total,
                 None,
             );
-
-            let backup_path = match file_service::create_backup(&file.original_path, &backup_dir) {
-                Ok(path) => path,
-                Err(error) => {
-                    return finish_outcome(
-                        app_handle.as_ref(),
-                        &job_id,
-                        files_total,
-                        &processed_count,
-                        job_file_id,
-                        file,
-                        None,
-                        None,
-                        "failed",
-                        Some(error),
-                    );
-                }
-            };
-
-            let parent = Path::new(&file.original_path)
-                .parent()
-                .unwrap_or(Path::new("."));
-            let new_path = parent.join(&preview.transformed_name);
-            let new_path_string = new_path.to_string_lossy().to_string();
-
-            if target_exists_and_is_not_source(&file.original_path, &new_path) {
-                return finish_outcome(
-                    app_handle.as_ref(),
-                    &job_id,
-                    files_total,
-                    &processed_count,
-                    job_file_id,
-                    file,
-                    Some(new_path_string),
-                    Some(backup_path),
-                    "failed",
-                    Some("TARGET_EXISTS: Target path already exists".into()),
-                );
-            }
-
-            let rename_result = fs::rename(&file.original_path, &new_path)
-                .map_err(|e| format!("RENAME_FAILED: {}", e));
-
-            match rename_result {
-                Ok(()) => finish_outcome(
-                    app_handle.as_ref(),
-                    &job_id,
-                    files_total,
-                    &processed_count,
-                    job_file_id,
-                    file,
-                    Some(new_path_string),
-                    Some(backup_path),
-                    "success",
+            db.with(|conn| {
+                db::update_job_file_result(
+                    conn,
+                    &job_file_ids[idx],
+                    "skipped",
                     None,
-                ),
-                Err(error) => finish_outcome(
-                    app_handle.as_ref(),
-                    &job_id,
-                    files_total,
-                    &processed_count,
-                    job_file_id,
-                    file,
-                    Some(new_path_string),
-                    Some(backup_path),
-                    "failed",
-                    Some(error),
-                ),
-            }
-        })
-        .collect();
+                    None,
+                    Some(&error),
+                )
+                .map_err(|e| format!("DB_ERROR: {}", e))
+            })?;
+        }
+        db.with(|conn| {
+            db::update_job_status(conn, &job_id, "failed").map_err(|e| format!("DB_ERROR: {}", e))
+        })?;
+        {
+            let mut flags = CANCEL_FLAGS.lock().unwrap();
+            flags.remove(&job_id);
+        }
+        emit_complete(
+            app,
+            &job_id,
+            "failed",
+            0,
+            failed,
+            start_time.elapsed().as_millis() as u64,
+        );
+        return Ok(());
+    }
 
-    let mut completed = 0u32;
-    let mut failed = 0u32;
-    let mut db_recording_errors = Vec::new();
-    for outcome in &outcomes {
-        if outcome.status == "success" {
-            completed += 1;
-        } else {
+    // Identity renames (not in the plan) complete immediately without touching disk.
+    let planned_ids: HashSet<&str> = plan.iter().map(|s| s.file_id.as_str()).collect();
+    for (idx, file) in files.iter().enumerate() {
+        if planned_ids.contains(file.id.as_str()) {
+            continue;
+        }
+        processed += 1;
+        completed += 1;
+        terminal.insert(file.id.clone());
+        emit_progress(
+            app,
+            &job_id,
+            &file.id,
+            &file.original_name,
+            "completed",
+            100.0,
+            None,
+            processed,
+            files_total,
+            Some(&file.original_path),
+        );
+        let job_file_id = job_file_ids[idx].clone();
+        let path = file.original_path.clone();
+        db.with(|conn| {
+            db::update_job_file_result(conn, &job_file_id, "success", Some(&path), None, None)
+                .map_err(|e| format!("DB_ERROR: {}", e))
+        })?;
+    }
+
+    for (step_i, step) in plan.iter().enumerate() {
+        if cancel_flag.load(Ordering::Relaxed) {
+            break;
+        }
+
+        let file = &files[step.file_index];
+        let job_file_id = &job_file_ids[step.file_index];
+        let is_last = last_step_for_file.get(&step.file_id) == Some(&step_i);
+
+        emit_progress(
+            app,
+            &job_id,
+            &file.id,
+            &file.original_name,
+            "processing",
+            25.0,
+            None,
+            processed,
+            files_total,
+            None,
+        );
+
+        if step.create_backup {
+            match file_service::create_backup(&file.original_path, &backup_dir) {
+                Ok(path) => {
+                    backups.insert(file.id.clone(), path);
+                }
+                Err(error) => {
+                    processed += 1;
+                    failed += 1;
+                    terminal.insert(file.id.clone());
+                    emit_progress(
+                        app,
+                        &job_id,
+                        &file.id,
+                        &file.original_name,
+                        "failed",
+                        0.0,
+                        Some(&error),
+                        processed,
+                        files_total,
+                        None,
+                    );
+                    db.with(|conn| {
+                        db::update_job_file_result(
+                            conn,
+                            job_file_id,
+                            "failed",
+                            None,
+                            None,
+                            Some(&error),
+                        )
+                        .map_err(|e| format!("DB_ERROR: {}", e))
+                    })?;
+                    continue;
+                }
+            }
+        }
+
+        if terminal.contains(&step.file_id) {
+            continue;
+        }
+
+        let new_path_string = step.to.to_string_lossy().to_string();
+        if target_exists_and_is_not_source(step.from.to_str().unwrap_or(""), &step.to) {
+            let error = "TARGET_EXISTS: Target path already exists".to_string();
+            processed += 1;
             failed += 1;
+            terminal.insert(file.id.clone());
+            emit_progress(
+                app,
+                &job_id,
+                &file.id,
+                &file.original_name,
+                "failed",
+                0.0,
+                Some(&error),
+                processed,
+                files_total,
+                None,
+            );
+            let backup = backups.get(&file.id).cloned();
+            db.with(|conn| {
+                db::update_job_file_result(
+                    conn,
+                    job_file_id,
+                    "failed",
+                    Some(&new_path_string),
+                    backup.as_deref(),
+                    Some(&error),
+                )
+                .map_err(|e| format!("DB_ERROR: {}", e))
+            })?;
+            continue;
         }
-        if let Err(error) = db::update_job_file_result(
-            conn,
-            &outcome.job_file_id,
-            outcome.status,
-            outcome.transformed_path.as_deref(),
-            outcome.backup_path.as_deref(),
-            outcome.error.as_deref(),
-        ) {
-            db_recording_errors.push(format!("{}: {}", outcome.job_file_id, error));
+
+        // Cancel is checked before this hop. An in-flight fs::rename is not reversed.
+        if let Err(e) = fs::rename(&step.from, &step.to) {
+            let error = format!("RENAME_FAILED: {}", e);
+            processed += 1;
+            failed += 1;
+            terminal.insert(file.id.clone());
+            emit_progress(
+                app,
+                &job_id,
+                &file.id,
+                &file.original_name,
+                "failed",
+                0.0,
+                Some(&error),
+                processed,
+                files_total,
+                None,
+            );
+            let backup = backups.get(&file.id).cloned();
+            db.with(|conn| {
+                db::update_job_file_result(
+                    conn,
+                    job_file_id,
+                    "failed",
+                    Some(&new_path_string),
+                    backup.as_deref(),
+                    Some(&error),
+                )
+                .map_err(|e| format!("DB_ERROR: {}", e))
+            })?;
+            continue;
+        }
+
+        if is_last {
+            processed += 1;
+            completed += 1;
+            terminal.insert(file.id.clone());
+            emit_progress(
+                app,
+                &job_id,
+                &file.id,
+                &file.original_name,
+                "completed",
+                100.0,
+                None,
+                processed,
+                files_total,
+                Some(&new_path_string),
+            );
+            let backup = backups.get(&file.id).cloned();
+            db.with(|conn| {
+                db::update_job_file_result(
+                    conn,
+                    job_file_id,
+                    "success",
+                    Some(&new_path_string),
+                    backup.as_deref(),
+                    None,
+                )
+                .map_err(|e| format!("DB_ERROR: {}", e))
+            })?;
+
+            if let Some(registry) = registry {
+                let mut reg = registry.lock().unwrap();
+                if let Some(entry) = reg.get_mut(&file.id) {
+                    let new_name = Path::new(&new_path_string)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or(&entry.original_name)
+                        .to_string();
+                    entry.original_path = new_path_string;
+                    entry.original_name = new_name;
+                }
+            }
         }
     }
 
-    // Keep the trusted registry in sync so a second preview/apply in the same
-    // session resolves the file's new location rather than the stale one.
-    if let Some(registry) = registry {
-        let mut reg = registry.lock().unwrap();
-        for (file, outcome) in files.iter().zip(outcomes.iter()) {
-            if outcome.status != "success" {
-                continue;
-            }
-            let Some(new_path) = &outcome.transformed_path else {
-                continue;
-            };
-            if let Some(entry) = reg.get_mut(&file.id) {
-                let new_name = Path::new(new_path)
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or(&entry.original_name)
-                    .to_string();
-                entry.original_path = new_path.clone();
-                entry.original_name = new_name;
-            }
+    // Remaining files were not started, or were mid-plan when cancel landed.
+    // Cancel does not undo hops that already ran.
+    let cancelled = cancel_flag.load(Ordering::Relaxed);
+    for (idx, file) in files.iter().enumerate() {
+        if terminal.contains(&file.id) {
+            continue;
         }
+        processed += 1;
+        failed += 1;
+        let error = if cancelled {
+            "CANCELLED: Job was cancelled".to_string()
+        } else {
+            "CANCELLED: Remaining rename hops were not applied".to_string()
+        };
+        emit_progress(
+            app,
+            &job_id,
+            &file.id,
+            &file.original_name,
+            "failed",
+            0.0,
+            Some(&error),
+            processed,
+            files_total,
+            None,
+        );
+        let backup = backups.get(&file.id).cloned();
+        let status = if cancelled { "skipped" } else { "failed" };
+        db.with(|conn| {
+            db::update_job_file_result(
+                conn,
+                &job_file_ids[idx],
+                status,
+                None,
+                backup.as_deref(),
+                Some(&error),
+            )
+            .map_err(|e| format!("DB_ERROR: {}", e))
+        })?;
     }
 
-    let job_status = if failed == 0 && db_recording_errors.is_empty() {
+    let job_status = if failed == 0 {
         "completed"
-    } else if completed > 0 || !db_recording_errors.is_empty() {
+    } else if completed > 0 {
         "partial"
     } else {
         "failed"
     };
-    db::update_job_status(conn, &job_id, job_status).map_err(|e| format!("DB_ERROR: {}", e))?;
-
-    let file_names: Vec<String> = files.iter().map(|f| f.original_name.clone()).collect();
-    let _ = db::insert_search_entry(
-        conn,
-        &job_id,
-        &format!("Batch rename: {} files", file_count),
-        &file_names.join(" "),
-    );
+    db.with(|conn| {
+        db::update_job_status(conn, &job_id, job_status).map_err(|e| format!("DB_ERROR: {}", e))?;
+        let file_names: Vec<String> = files.iter().map(|f| f.original_name.clone()).collect();
+        let _ = db::insert_search_entry(
+            conn,
+            &job_id,
+            &format!("Batch rename: {} files", files.len()),
+            &file_names.join(" "),
+        );
+        Ok(())
+    })?;
 
     {
         let mut flags = CANCEL_FLAGS.lock().unwrap();
@@ -296,51 +543,7 @@ pub fn execute_batch_rename_with_paths(
         start_time.elapsed().as_millis() as u64,
     );
 
-    Ok(job_id)
-}
-
-fn finish_outcome(
-    app: Option<&AppHandle>,
-    job_id: &str,
-    files_total: u32,
-    processed_count: &Arc<Mutex<u32>>,
-    job_file_id: &str,
-    file: &FileInfo,
-    transformed_path: Option<String>,
-    backup_path: Option<String>,
-    status: &'static str,
-    error: Option<String>,
-) -> RenameOutcome {
-    let mut processed = processed_count.lock().unwrap();
-    *processed += 1;
-    let event_status = if status == "success" {
-        "completed"
-    } else {
-        "failed"
-    };
-    emit_progress(
-        app,
-        job_id,
-        &file.id,
-        &file.original_name,
-        event_status,
-        if status == "success" { 100.0 } else { 0.0 },
-        error.as_deref(),
-        *processed,
-        files_total,
-        if status == "success" {
-            transformed_path.as_deref()
-        } else {
-            None
-        },
-    );
-    RenameOutcome {
-        job_file_id: job_file_id.to_string(),
-        transformed_path,
-        backup_path,
-        status,
-        error,
-    }
+    Ok(())
 }
 
 fn emit_progress(
@@ -399,21 +602,23 @@ fn target_exists_and_is_not_source(original_path: &str, target_path: &Path) -> b
     if !target_path.exists() {
         return false;
     }
-    !paths_refer_to_same_file(Path::new(original_path), target_path)
+    !file_service::paths_refer_to_same_file(Path::new(original_path), target_path)
 }
 
 pub fn undo_batch(
     app: &AppHandle,
     conn: &rusqlite::Connection,
     job_id: &str,
+    registry: Option<&Mutex<HashMap<String, FileInfo>>>,
 ) -> Result<UndoResponse, String> {
-    undo_batch_with_emitter(Some(app), conn, job_id)
+    undo_batch_with_emitter(Some(app), conn, job_id, registry)
 }
 
 pub fn undo_batch_with_emitter(
     _app: Option<&AppHandle>,
     conn: &rusqlite::Connection,
     job_id: &str,
+    registry: Option<&Mutex<HashMap<String, FileInfo>>>,
 ) -> Result<UndoResponse, String> {
     let status: String = conn
         .query_row("SELECT status FROM jobs WHERE id = ?1", [job_id], |row| {
@@ -430,10 +635,16 @@ pub fn undo_batch_with_emitter(
     let mut files_restored = 0u32;
     let mut files_failed = 0u32;
     let mut errors = Vec::new();
+    let mut restored_paths: Vec<(String, String)> = Vec::new();
 
     for record in records {
+        let original_path = record.original_path.clone();
+        let transformed_path = record.transformed_path.clone();
         match undo_one_record(&record) {
-            Ok(()) => files_restored += 1,
+            Ok(()) => {
+                files_restored += 1;
+                restored_paths.push((transformed_path, original_path));
+            }
             Err(error) => {
                 files_failed += 1;
                 errors.push(FileError {
@@ -446,6 +657,39 @@ pub fn undo_batch_with_emitter(
 
     if files_failed == 0 {
         db::mark_rolled_back(conn, job_id).map_err(|e| format!("DB_ERROR: {}", e))?;
+        if let Some(registry) = registry {
+            // Full undo: drop restored ids so the session cap has no ghosts.
+            // Matching is by current (transformed) path because apply updated
+            // registry entries to the new location.
+            let mut reg = registry.lock().unwrap();
+            let drop_keys: Vec<String> = reg
+                .iter()
+                .filter(|(_, file)| {
+                    restored_paths.iter().any(|(transformed, original)| {
+                        file.original_path == *transformed || file.original_path == *original
+                    })
+                })
+                .map(|(id, _)| id.clone())
+                .collect();
+            for id in drop_keys {
+                reg.remove(&id);
+            }
+        }
+    } else if let Some(registry) = registry {
+        // Partial undo: restored files move back; failed ones stay put.
+        let mut reg = registry.lock().unwrap();
+        for (transformed, original) in &restored_paths {
+            for entry in reg.values_mut() {
+                if entry.original_path == *transformed {
+                    entry.original_path = original.clone();
+                    entry.original_name = Path::new(original)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or(&entry.original_name)
+                        .to_string();
+                }
+            }
+        }
     }
 
     Ok(UndoResponse {
@@ -471,7 +715,8 @@ fn undo_one_record(record: &db::UndoFileRecord) -> Result<(), String> {
         return Err("ORIGINAL_EXISTS: Refusing to overwrite a file at the original path".into());
     }
 
-    let same_path = paths_refer_to_same_file(&original, &transformed) || original == transformed;
+    let same_path =
+        file_service::paths_refer_to_same_file(&original, &transformed) || original == transformed;
     if transformed.exists() && !same_path {
         if !files_match(&transformed, &backup).map_err(|e| format!("OUTPUT_CHECK_FAILED: {}", e))? {
             return Err("OUTPUT_CHANGED: Refusing to remove a changed renamed file".into());
@@ -484,13 +729,6 @@ fn undo_one_record(record: &db::UndoFileRecord) -> Result<(), String> {
     }
 
     Ok(())
-}
-
-fn paths_refer_to_same_file(left: &Path, right: &Path) -> bool {
-    match (left.canonicalize(), right.canonicalize()) {
-        (Ok(left), Ok(right)) => left == right,
-        _ => false,
-    }
 }
 
 fn files_match(left: &Path, right: &Path) -> std::io::Result<bool> {

@@ -3,20 +3,31 @@ import { useAppState, useFileStats } from '@/state/AppStateContext';
 import { FixedSizeList as List } from 'react-window';
 import { FileCard } from './FileCard';
 import { Trash2 } from 'lucide-react';
+import { clearFiles, forgetFiles, parseError } from '@/lib/commands';
 
 export function FileList() {
   const { state, dispatch } = useAppState();
   const stats = useFileStats();
 
   const handleRemove = useCallback(
-    (id: string) => {
-      dispatch({ type: 'REMOVE_FILE', id });
+    async (id: string) => {
+      try {
+        await forgetFiles([id]);
+        dispatch({ type: 'REMOVE_FILE', id });
+      } catch (err) {
+        dispatch({ type: 'SET_ERROR', error: parseError(err) });
+      }
     },
     [dispatch]
   );
 
-  const handleClearAll = useCallback(() => {
-    dispatch({ type: 'CLEAR_FILES' });
+  const handleClearAll = useCallback(async () => {
+    try {
+      await clearFiles();
+      dispatch({ type: 'CLEAR_FILES' });
+    } catch (err) {
+      dispatch({ type: 'SET_ERROR', error: parseError(err) });
+    }
   }, [dispatch]);
 
   if (state.files.length === 0) return null;
