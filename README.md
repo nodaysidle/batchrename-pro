@@ -1,13 +1,31 @@
-<img src=".github/social-preview.png" alt="BatchRename Pro — NODAYSIDLE" width="100%">
+<p align="center">
+  <img src="src-tauri/icons/128x128.png" width="128" height="128" alt="BatchRename Pro icon">
+</p>
 
-# BatchRename Pro
+<h1 align="center">BatchRename Pro</h1>
 
-> Batch rename files safely in one local-first desktop app. No cloud. No scripts.
+<p align="center">
+  <strong>Batch rename files safely in one local-first desktop app.</strong><br>
+  No cloud. No scripts.
+</p>
 
-![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-black?style=flat-square)
-![Tauri](https://img.shields.io/badge/Tauri-2.0-24C8DB?style=flat-square&logo=tauri)
-![Rust](https://img.shields.io/badge/Rust-2021-orange?style=flat-square&logo=rust)
-![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
+<p align="center">
+  <img alt="macOS Apple Silicon" src="https://img.shields.io/badge/macOS-Apple%20Silicon-black?style=flat-square&logo=apple&logoColor=white">
+  <img alt="v0.1.0" src="https://img.shields.io/badge/v0.1.0-release-6B6B80?style=flat-square">
+  <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2.0-24C8DB?style=flat-square&logo=tauri">
+  <img alt="Rust" src="https://img.shields.io/badge/Rust-2021-orange?style=flat-square&logo=rust">
+  <img alt="MIT" src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
+</p>
+
+<p align="center">
+  <a href="https://github.com/nodaysidle/batchrename-pro/releases/download/v0.1.0/BatchRename-Pro-0.1.0-aarch64.dmg"><strong>Download Apple Silicon DMG (v0.1.0)</strong></a>
+  ·
+  <a href="https://github.com/nodaysidle/batchrename-pro">GitHub</a>
+</p>
+
+<p align="center">
+  <em>Apple Silicon · ad-hoc signed / not notarized</em>
+</p>
 
 ## Overview
 
@@ -41,12 +59,11 @@ Format conversion and metadata editing are **not shipped** in v0.1.0 (backlog). 
 
 ## Installation
 
-Download the latest macOS DMG from [GitHub Releases](https://github.com/nodaysidle/batchrename-pro/releases/tag/v0.1.0):
+1. Download [`BatchRename-Pro-0.1.0-aarch64.dmg`](https://github.com/nodaysidle/batchrename-pro/releases/download/v0.1.0/BatchRename-Pro-0.1.0-aarch64.dmg) (Latest = v0.1.0).
+2. Open the DMG and drag `BatchRename Pro.app` to `/Applications`.
+3. First launch: right-click → **Open** if Gatekeeper blocks it (ad-hoc / not notarized).
 
-- `BatchRename-Pro-0.1.0-aarch64.dmg`
 - SHA256: `ef6e33a03881430c329fd9fd888cf4010142598010a89b535cf0eb2c3948309b`
-
-Open the DMG and drag `BatchRename Pro.app` to `/Applications`. The build is ad-hoc signed, not Apple-notarized. If macOS blocks first launch, right-click the app and choose **Open**.
 
 ## Development
 
