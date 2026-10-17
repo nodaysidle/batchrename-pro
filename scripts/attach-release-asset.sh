@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Attach one or more locally built DMG/zip assets to an existing GitHub Release for this tag.
-# Usage: Scripts/attach-release-asset.sh v0.2.0 ./path/to/BatchRename-Pro-0.2.0-aarch64.dmg [./path/to/other.dmg ...]
+# Usage: scripts/attach-release-asset.sh v0.2.0 ./path/to/BatchRename-Pro-0.2.0-aarch64.dmg [./path/to/other.dmg ...]
 set -euo pipefail
 
 TAG="${1:-}"

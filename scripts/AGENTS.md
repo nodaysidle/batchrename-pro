@@ -8,6 +8,8 @@ Owns local build, package, smoke, install, QA, and release helper scripts.
 
 - `ci-local.sh`
 - `package-macos.sh`
+- `attach-release-asset.sh`
+- `README-hybrid-release.md`
 
 ## Local Contracts
 
